@@ -11,7 +11,7 @@ import SwiftUI
 struct MbMajiangApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            TitleView()
         }
     }
 }
