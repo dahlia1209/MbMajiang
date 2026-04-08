@@ -70,13 +70,18 @@ struct BoardView: View {
                 case .kaiju:
                     game.qipai()
                 case .qipai:
+                    game.status.player = game.nextPlayer()
                     game.zimo()
                 case .zimo:
                     if status.player != 0 {
-                        game.dapai()
+                        let selectedIdx=99
+
+                        game.dapai(selectedIdx)
                     }
                     // player == 0 はユーザー操作待ち
                 case .dapai:
+                    
+                    game.status.player = game.nextPlayer()
                     game.zimo()
                 default:
                     break

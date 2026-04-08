@@ -35,6 +35,8 @@ struct Shoupai{
 struct Pai: Hashable {
     var label: String = "_"
     var alt: String = "_"
+    var hidden: Bool = false
+    var revealed:Bool=true
     
     init(_ code: String) {
         let value = paiTable[code]
@@ -209,6 +211,17 @@ class Game{
     var status:GameStatus=GameStatus()
     var onAction: ((GameStatus) -> Void)?
     
+    func nextPlayer() -> Int {
+            switch self.status.action {
+            case .qipai:
+                return getTongjia()
+            case .fulou:
+                return self.status.player
+            default:
+                return (self.status.player + 1) % 4
+            }
+        }
+    
     init() {
 
         }
@@ -227,15 +240,11 @@ class Game{
      func qipai(){
         self.status.action = .qipai
         self.status.player = 4
-        self.board.score.setQijia(qijia: Int.random(in: 0...4))
+        self.board.score.setQijia(qijia: Int.random(in: 0...3))
         onAction?(self.status)
     }
     
      func zimo(){
-        self.status.player=switch self.status.action {
-        case .qipai:  self.getTongjia()
-        default: (self.status.player+1) % 4
-        }
         self.status.action = .zimo
         
         let zimo=self.popShan()
@@ -244,19 +253,28 @@ class Game{
         onAction?(self.status)
     }
     
-    func dapai(index: Int = 99) {
+    func dapai(_ index: Int = 99) {
         self.status.action = .dapai
+        
+        if index == 99 {
+                // zimoを打牌
+                let dapai = self.board.shan.shoupai[self.status.player].zimo!
+                self.board.shan.he[self.status.player].qipai.append(dapai)
+                self.board.shan.shoupai[self.status.player].zimo?.hidden = true  // 非表示に
+            } else {
+                // bingpaiから打牌
+                let dapai = self.board.shan.shoupai[self.status.player].bingpai[index]
+                self.board.shan.he[self.status.player].qipai.append(dapai)
+                self.board.shan.shoupai[self.status.player].bingpai[index].hidden = true  // 非表示に
+            }
         
         let dapai = index == 99
             ? self.board.shan.shoupai[self.status.player].zimo!
             : self.board.shan.shoupai[self.status.player].bingpai[index]
         
-        self.board.shan.he[self.status.player].qipai.append(dapai)
-        self.status.dapai = dapai.label
         
-        #if DEBUG
-        print("🀄 [dapai] player: \(self.status.player), 打牌: \(dapai.label)")
-        #endif
+        self.status.dapai = dapai.label
+        self.status.selectedIdx = index
         
         onAction?(self.status)
     }

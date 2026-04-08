@@ -9,8 +9,8 @@ import SwiftUI
 
 struct PaiView: View {
     var pai:Pai
-    var hidden:Bool=false
-    var revealed:Bool=true
+    
+    
     
     var body: some View {
         ZStack {
@@ -33,31 +33,31 @@ struct PaiView: View {
     }
     
     mutating func hide() {
-        self.hidden = true
+        self.pai.hidden = true
     }
     
     func isHidden() -> Bool {
-            return hidden
+        return self.pai.hidden
         }
     
     mutating func reveal() {
-        self.revealed = true
+        self.pai.revealed = true
     }
     
     mutating func reverse() {
-        self.revealed = false
+        self.pai.revealed = false
     }
     
     func isRevealed() -> Bool {
-        return pai.label != "_" && self.revealed
+        return pai.label != "_" && self.pai.revealed
     }
 }
 
 extension PaiView {
-    init(_ code: String, hidden:Bool=false, reveal:Bool=true)  {
+    init(_ code: String, _ reveal: Bool=true, _ hidden:Bool = false)  {
         self.pai = Pai(code)
-        self.hidden=hidden
-        self.revealed=reveal
+        self.pai.revealed=reveal
+        self.pai.hidden=hidden
     }
 }
 
