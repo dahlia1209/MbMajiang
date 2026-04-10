@@ -8,19 +8,33 @@
 import SwiftUI
 
 struct ShoupaiView: View {
-    var shoupai:Shoupai
-    var isTajia:Bool=false
-    
+    var shoupai: Shoupai
+    var isTajia: Bool = false
+    var onTapPai: ((Int) -> Void)? = nil  // 追加
+
+    private func tajia(_ pai: Pai) -> Pai {
+        var p = pai
+        p.revealed = false
+        return p
+    }
+
     var body: some View {
         HStack(spacing: 0) {
-            ForEach(shoupai.bingpai, id: \.self) { pai in
-                PaiView(isTajia ? "_" : pai.label)
+            ForEach(shoupai.bingpai.indices, id: \.self) { index in
+                let pai = shoupai.bingpai[index]
+                PaiView(pai: isTajia ? tajia(pai) : pai)
+                    .onTapGesture {
+                        onTapPai?(index)
+                    }
             }
-            
+
             Spacer().frame(width: 10)
 
             if let zimo = shoupai.zimo {
-                PaiView(isTajia ? "_" : zimo.label)
+                PaiView(pai: isTajia ? tajia(zimo) : zimo)
+                    .onTapGesture {
+                        onTapPai?(shoupai.bingpai.count)  // zimoは末尾のインデックス
+                    }
             } else {
                 Color.clear
                     .frame(width: 22 + 8)

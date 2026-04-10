@@ -28,7 +28,10 @@ struct Shoupai{
             return value
         }
     
-    
+    mutating func lipai() {
+        bingpai = bingpai.filter { !$0.hidden } + [zimo].compactMap { $0 }
+        zimo = nil
+    }
 }
 
 // MARK: - Pai
@@ -256,22 +259,18 @@ class Game{
     func dapai(_ index: Int = 99) {
         self.status.action = .dapai
         
+        let dapai:Pai
         if index == 99 {
                 // zimoを打牌
-                let dapai = self.board.shan.shoupai[self.status.player].zimo!
+                 dapai = self.board.shan.shoupai[self.status.player].zimo!
                 self.board.shan.he[self.status.player].qipai.append(dapai)
-                self.board.shan.shoupai[self.status.player].zimo?.hidden = true  // 非表示に
+                self.board.shan.shoupai[self.status.player].zimo?.hidden = true
             } else {
                 // bingpaiから打牌
-                let dapai = self.board.shan.shoupai[self.status.player].bingpai[index]
+                 dapai = self.board.shan.shoupai[self.status.player].bingpai[index]
                 self.board.shan.he[self.status.player].qipai.append(dapai)
-                self.board.shan.shoupai[self.status.player].bingpai[index].hidden = true  // 非表示に
+                self.board.shan.shoupai[self.status.player].bingpai[index].hidden = true
             }
-        
-        let dapai = index == 99
-            ? self.board.shan.shoupai[self.status.player].zimo!
-            : self.board.shan.shoupai[self.status.player].bingpai[index]
-        
         
         self.status.dapai = dapai.label
         self.status.selectedIdx = index
@@ -285,6 +284,10 @@ class Game{
     
      func popShan()->Pai{
         return self.board.shan.shan.removeLast()
+    }
+    
+    var canDapai: Bool {
+        status.player == 0 && status.action == .zimo
     }
 
 }

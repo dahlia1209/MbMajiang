@@ -26,19 +26,26 @@ struct BoardView: View {
             .padding(.horizontal, 40)
             
             
-            ShoupaiView(shoupai: game.board.shan.shoupai[0])
-                .offset(x:-40,y:170)
+            ShoupaiView(
+                shoupai: game.board.shan.shoupai[0],
+                onTapPai: game.canDapai ? { selectedIdx in
+                    game.dapai(selectedIdx)
+                } : nil
+            )
+            .offset(x: -40, y: 170)
+                
             HeView(he:game.board.shan.he[0])
                 .scaleEffect(0.8)
                 .offset(y:80)
             
             ShoupaiView(shoupai: game.board.shan.shoupai[1],isTajia: true)
-                .offset(y:250)
+                .offset(y:260)
             .rotationEffect(.degrees(270))
             HeView(he:game.board.shan.he[1])
                 .scaleEffect(0.7)
-                .offset(x:-60,y:150)
+                .offset(x:0,y:150)
                 .rotationEffect(.degrees(270))
+                
             
             ShoupaiView(shoupai: game.board.shan.shoupai[2],isTajia: true)
             .offset(y:160)
@@ -74,13 +81,13 @@ struct BoardView: View {
                     game.zimo()
                 case .zimo:
                     if status.player != 0 {
-                        let selectedIdx=99
+                        let selectedIdx=1
 
                         game.dapai(selectedIdx)
                     }
                     // player == 0 はユーザー操作待ち
                 case .dapai:
-                    
+                    game.board.shan.shoupai[status.player].lipai()
                     game.status.player = game.nextPlayer()
                     game.zimo()
                 default:
