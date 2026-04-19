@@ -10,7 +10,9 @@ import SwiftUI
 struct ShoupaiView: View {
     var shoupai: Shoupai
     var isTajia: Bool = false
-    var onTapPai: ((Int) -> Void)? = nil  // 追加
+    var onTapPai: ((Int) -> Void)? = nil
+    /// nil = 制限なし。非 nil の場合、含まれないインデックスはグレーアウトしてタップ不可
+    var highlightedIndices: Set<Int>? = nil
 
     private func tajia(_ pai: Pai) -> Pai {
         var p = pai
@@ -18,28 +20,41 @@ struct ShoupaiView: View {
         return p
     }
 
+    private func isEnabled(_ index: Int) -> Bool {
+        highlightedIndices.map { $0.contains(index) } ?? true
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             ForEach(shoupai.bingpai.indices, id: \.self) { index in
                 let pai = shoupai.bingpai[index]
-                PaiView(pai: isTajia ? tajia(pai) : pai)
-                    .onTapGesture {
-                        onTapPai?(index)
-                    }
+                paiCell(pai: isTajia ? tajia(pai) : pai, index: index)
             }
+            // 13枚分の残りスペースを確保（枚数変動で全体が動かないよう固定）
+            let remaining = 13 - shoupai.bingpai.count
+            Color.clear.frame(width: CGFloat(remaining) * 22)
 
             Spacer().frame(width: 10)
 
             if let zimo = shoupai.zimo {
-                PaiView(pai: isTajia ? tajia(zimo) : zimo)
-                    .onTapGesture {
-                        onTapPai?(shoupai.bingpai.count)  // zimoは末尾のインデックス
-                    }
+                paiCell(pai: isTajia ? tajia(zimo) : zimo, index: shoupai.bingpai.count)
             } else {
-                Color.clear
-                    .frame(width: 22 + 8)
+                Color.clear.frame(width: 22)
             }
         }
+    }
+
+    @ViewBuilder
+    private func paiCell(pai: Pai, index: Int) -> some View {
+        let enabled = isEnabled(index)
+        let highlighted = highlightedIndices != nil && enabled
+        PaiView(pai: pai)
+            .offset(y: highlighted ? -6 : 0)
+            .opacity(enabled ? 1.0 : 0.35)
+            .onTapGesture {
+                guard enabled else { return }
+                onTapPai?(index)
+            }
     }
 }
 

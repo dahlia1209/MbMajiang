@@ -8,30 +8,39 @@
 import SwiftUI
 
 struct HeView: View {
-    var he:He
-    
+    var he: He
+
+    // 1行6枚 × 22px
+    private let rowWidth: CGFloat = 22 * 6
+
     var body: some View {
         let row1 = Array(he.qipai.prefix(6))
-        let row2 = he.qipai.count > 6 ? Array(he.qipai[6..<min(12, he.qipai.count)]) : []
+        let row2 = he.qipai.count > 6  ? Array(he.qipai[6..<min(12, he.qipai.count)]) : []
         let row3 = he.qipai.count > 12 ? Array(he.qipai[12...]) : []
-        
+
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
-                ForEach(row1, id: \.self) { pai in
-                    PaiView(pai.label)
-                }
+                ForEach(row1.indices, id: \.self) { i in
+                        PaiView(row1[i].label)
+                    }
             }
+            .frame(width: rowWidth, alignment: .leading) // ← 固定幅・左揃え
+
             HStack(spacing: 0) {
-                ForEach(row2, id: \.self) { pai in
-                    PaiView(pai.label)
-                }
+                ForEach(row2.indices, id: \.self) { i in
+                        PaiView(row2[i].label)
+                    }
             }
+            .frame(width: rowWidth, alignment: .leading)
+
             HStack(spacing: 0) {
-                ForEach(row3, id: \.self) { pai in
-                    PaiView(pai.label)
-                }
+                ForEach(row3.indices, id: \.self) { i in
+                        PaiView(row3[i].label)
+                    }
             }
+            .frame(width: rowWidth, alignment: .leading)
         }
+        .frame(width: rowWidth, height: 30 * 3, alignment: .topLeading) 
     }
 }
 

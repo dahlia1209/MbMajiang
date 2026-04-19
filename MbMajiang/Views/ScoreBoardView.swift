@@ -60,17 +60,17 @@ struct ScoreBoardView: View {
     // MARK: - Score Section
     var scoreSection: some View {
         ZStack {
-            Text("\(score.defen[0].0.rawValue)　\(score.defen[0].1, specifier: "%d")")
+            Text("\(score.defen[0].0.label)　\(score.defen[0].1, specifier: "%d")")
                 .offset(y: 20)
                 .foregroundColor(Color(red: 0.9, green: 0.78, blue: 0.28))
             
-            Text("\(score.defen[1].0.rawValue)　\(score.defen[1].1, specifier: "%d")")
+            Text("\(score.defen[1].0.label)　\(score.defen[1].1, specifier: "%d")")
                 .offset(x: 60)
             
-            Text("\(score.defen[2].0.rawValue)　\(score.defen[2].1, specifier: "%d")")
+            Text("\(score.defen[2].0.label)　\(score.defen[2].1, specifier: "%d")")
                 .offset(y: -20)
             
-            Text("\(score.defen[3].0.rawValue)　\(score.defen[3].1, specifier: "%d")")
+            Text("\(score.defen[3].0.label)　\(score.defen[3].1, specifier: "%d")")
                 .offset(x: -60)
         }
         .font(.system(size: 12, weight: .regular))
