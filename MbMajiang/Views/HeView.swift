@@ -40,7 +40,7 @@ struct HeView: View {
             }
             .frame(width: rowWidth, alignment: .leading)
         }
-        .frame(width: rowWidth, height: 30 * 3, alignment: .topLeading) 
+        .frame(width: rowWidth, height: 30 * 3, alignment: .topLeading)
     }
 }
 

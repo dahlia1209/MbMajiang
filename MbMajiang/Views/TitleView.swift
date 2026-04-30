@@ -32,7 +32,7 @@ struct TitleView: View {
         }
         .onAppear { animateIn() }
         .fullScreenCover(isPresented: $isGameStarted) {
-            BoardView(game: game)
+            BoardView(game: game, debugActions: [])
                 }
         .transaction { transaction in
             transaction.disablesAnimations = true

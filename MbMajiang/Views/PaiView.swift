@@ -23,12 +23,14 @@ struct PaiView: View {
 
             if self.isRevealed() {
                 if let uiImage = UIImage(named: pai.label) {
-                        Image(uiImage: uiImage)
-                            .resizable()
-                    }
+                    Image(uiImage: uiImage)
+                        .resizable()
+                }
             }
         }
         .frame(width: 22, height: 30)
+        .rotationEffect(pai.rotated ? .degrees(90) : .zero)
+        .frame(width: pai.rotated ? 30 : 22, height: pai.rotated ? 22 : 30)
         .opacity(isHidden() ? 0 : 1)
     }
     

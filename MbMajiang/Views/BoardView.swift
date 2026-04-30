@@ -15,7 +15,7 @@ struct BoardView: View {
     /// デバッグ: 全プレイヤーの手牌を公開するトグル
     @State private var revealAll: Bool = false
 
-    init(game: Game, debugActions: Set<PlayerButtonAction> = []) {
+    init(game: Game, debugActions: Set<PlayerButtonAction> ) {
         self._game = State(initialValue: game)
         self.debugActions = debugActions
     }
@@ -23,6 +23,21 @@ struct BoardView: View {
     /// 実際に表示するボタン（gameのactionsが空の場合はdebugActionsを使用）
     private var displayedActions: Set<PlayerButtonAction> {
         game.playerActions.isEmpty ? debugActions : game.playerActions
+    }
+
+    /// チー選択中にハイライトするインデックス
+    /// 1枚目未選択: chiCandidatesに含まれる全インデックス
+    /// 1枚目選択済み: 同じペアの残り1枚
+    private var chiHighlightedIndices: Set<Int>? {
+        guard let human = game.humanPlayer, human.status.isSelectingChi else { return nil }
+        let candidates = human.status.chiCandidates
+        let selected = human.status.selectedChi
+        if selected.isEmpty {
+            return Set(candidates.flatMap { $0 })
+        } else {
+            return Set(candidates.filter { $0.contains(selected[0]) }.flatMap { $0 })
+                .subtracting([selected[0]])
+        }
     }
 
     var body: some View {
@@ -54,10 +69,13 @@ struct BoardView: View {
 
             ShoupaiView(
                 shoupai: game.board.shan.shoupai[0],
-                onTapPai: (game.canDapai || game.isSelectingRiichi) ? { selectedIdx in
-                    game.dapai(selectedIdx)
-                } : nil,
-                highlightedIndices: game.isSelectingRiichi ? game.lizhiCandidateIndices : nil
+                onTapPai: game.canDapai ? { game.humanPlayer?.selectDapai($0) }
+                        : (game.humanPlayer?.status.isSelectingChi == true) ? { game.humanPlayer?.selectChi($0) }
+                        : nil,
+                highlightedIndices: game.humanPlayer?.status.isSelectingRiichi == true
+                    ? game.humanPlayer?.status.lizhiCandidateIndices
+                    : chiHighlightedIndices,
+                selectedIndices: Set(game.humanPlayer?.status.selectedChi ?? [])
             )
             .offset(y: 180)
 
@@ -130,7 +148,7 @@ struct BoardView: View {
 }
 
 #Preview("通常", traits: .landscapeLeft) {
-    BoardView(game: Game())
+    BoardView(game: Game(), debugActions: [])
 }
 
 #Preview("ツモ和了ボタン", traits: .landscapeLeft) {
@@ -171,5 +189,5 @@ struct BoardView: View {
         ],
         finalPoints: [-56.8, -12.7, 10.5, 59.0]
     )
-    return BoardView(game: game)
+    return BoardView(game: game, debugActions: [])
 }

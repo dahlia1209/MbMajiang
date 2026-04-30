@@ -16,6 +16,7 @@ struct Hudi {
     var zimo: Bool                  // ツモ和了か
     var shunzi: [String: [Int]]     // 順子 (m/p/s): 開始番号-1 が index (有効 0〜6)
     var kezi:   [String: [Int]]     // 刻子 (m/p/s/z): 牌番号-1 が index
+    var toitsu: [String: [Int]]     // 対子 (m/p/s/z): 牌番号-1 が index（七対子のスート判定に使用）
     var nShunzi: Int                // 順子の総数
     var nKezi:   Int                // 刻子（槓子含む）の総数
     var nAnkezi: Int                // 暗刻（暗槓含む）の総数
@@ -52,18 +53,7 @@ struct BlockCounts: Hashable {
     }
 }
 
-// MARK: - Feng（風牌）
-enum Feng: Int {
-    case 東 = 1, 南 = 2, 西 = 3, 北 = 4
 
-    var label: String {
-        switch self { case .東: return "東"; case .南: return "南"; case .西: return "西"; case .北: return "北" }
-    }
-
-    var next: Feng {
-        switch self { case .東: return .南; case .南: return .西; case .西: return .北; case .北: return .東 }
-    }
-}
 
 // MARK: - HuleContext（アガリの局面情報）
 struct HuleContext {
@@ -110,17 +100,22 @@ struct Hule {
     // 和了判定（正規化済みまたは未正規化の14枚）
     static func isHule(_ tiles: [String]) -> Bool {
         let t = tiles.map { normalize($0) }.sorted()
-        guard t.count == 14 else { return false }
+        // 14枚 or 副露後の 11/8/5/2 枚を許容
+        guard t.count >= 2 && (t.count - 2) % 3 == 0 else { return false }
 
-        // 七対子: 7種類の対子（同一牌4枚は不可）
-        var counts: [String: Int] = [:]
-        for tile in t { counts[tile, default: 0] += 1 }
-        if counts.count == 7 && counts.values.allSatisfy({ $0 == 2 }) { return true }
+        // 七対子・国士は門前（14枚）のみ
+        if t.count == 14 {
+            var counts: [String: Int] = [:]
+            for tile in t { counts[tile, default: 0] += 1 }
 
-        // 国士無双: 么九牌13種 + そのうち1種を対子
-        let yaojiu = ["m1","m9","p1","p9","s1","s9","z1","z2","z3","z4","z5","z6","z7"]
-        if yaojiu.allSatisfy({ counts[$0, default: 0] >= 1 }) &&
-           yaojiu.contains(where: { counts[$0, default: 0] >= 2 }) { return true }
+            // 七対子: 7種類の対子（同一牌4枚は不可）
+            if counts.count == 7 && counts.values.allSatisfy({ $0 == 2 }) { return true }
+
+            // 国士無双: 么九牌13種 + そのうち1種を対子
+            let yaojiu = ["m1","m9","p1","p9","s1","s9","z1","z2","z3","z4","z5","z6","z7"]
+            if yaojiu.allSatisfy({ counts[$0, default: 0] >= 1 }) &&
+               yaojiu.contains(where: { counts[$0, default: 0] >= 2 }) { return true }
+        }
 
         // メンツ形: winningDecompositions が1件以上あれば和了
         return !winningDecompositions(t).isEmpty
@@ -303,7 +298,9 @@ struct Hule {
     // 14枚の和了形を面子分解し、「順子・刻子 4組 + 対子 1組」の全パターンを返す
     // mentsuOnly: true でターツ・孤立牌の枝を再帰中に打ち切るため効率的
     static func winningDecompositions(_ tiles: [String]) -> [BlockCounts] {
-        guard tiles.count == 14 else { return [] }
+        // 14枚 or 副露後の 11/8/5/2 枚を許容
+        guard tiles.count >= 2 && (tiles.count - 2) % 3 == 0 else { return [] }
+        let requiredMentsu = (tiles.count - 2) / 3  // 14枚→4, 11枚→3, 8枚→2 ...
         let sc = tilesToSuitCounts(tiles)
         let mR = extractSuitBlocks(sc.m, suit: "m", canSeq: true,  mentsuOnly: true)
         let pR = extractSuitBlocks(sc.p, suit: "p", canSeq: true,  mentsuOnly: true)
@@ -314,7 +311,7 @@ struct Hule {
         var results: [BlockCounts] = []
         for bm in mR { for bp in pR { for bs in sR { for bz in zR {
             let merged = mergeBlockCounts(m: bm, p: bp, s: bs, z: bz)
-            guard sum(merged.shunzi) + sum(merged.kezi) == 4,
+            guard sum(merged.shunzi) + sum(merged.kezi) == requiredMentsu,
                   sum(merged.toitsu) == 1 else { continue }
             if seen.insert(merged).inserted { results.append(merged) }
         }}}}
@@ -357,20 +354,28 @@ struct Hule {
 // MARK: - 役計算
 extension Hule {
 
-    // tiles（14枚）+ 局面情報 から役・符を返す
+    // tiles（手牌）+ 局面情報 + 副露グループ から役・符を返す
     // 七対子は25符固定。通常形は全面子分解を試し最高翻数の組み合わせを採用。
+    // fulouGroups: 副露面子のラベル配列（例: [["z7","z7","z7"]]）
     static func getYaku(
         tiles: [String],
-        context: HuleContext
+        context: HuleContext,
+        fulouGroups: [[String]] = []
     ) -> (yaku: [Yaku], fu: Int) {
         let normalized = tiles.map { normalize($0) }.sorted()
+        let fulouBC = fulouBlockCounts(fulouGroups)
 
-        // 七対子チェック（7種の対子、4枚同種不可）
-        var tileCounts: [String: Int] = [:]
-        for t in normalized { tileCounts[t, default: 0] += 1 }
-        if tileCounts.count == 7 && tileCounts.values.allSatisfy({ $0 == 2 }) {
-            let yaku: [Yaku] = context.menqian ? [Yaku(name: "七対子", fanshu: 2)] : []
-            return (yaku: yaku, fu: 25)
+        // 七対子チェック（門前のみ、副露なし）
+        if fulouGroups.isEmpty {
+            var tileCounts: [String: Int] = [:]
+            for t in normalized { tileCounts[t, default: 0] += 1 }
+            if tileCounts.count == 7 && tileCounts.values.allSatisfy({ $0 == 2 }) {
+                let decompositions = chiitoitsuDecompositions(tileCounts)
+                let best = decompositions
+                    .map { yakuForDecomposition($0, context: context, fulouBC: fulouBC) }
+                    .max(by: { $0.0.reduce(0) { $0 + $1.fanshu } < $1.0.reduce(0) { $0 + $1.fanshu } })
+                return (yaku: best?.0 ?? [], fu: 25)
+            }
         }
 
         // 通常面子形
@@ -378,7 +383,7 @@ extension Hule {
         guard !decompositions.isEmpty else { return (yaku: [], fu: 30) }
 
         let candidates = decompositions.map { d -> ([Yaku], Int) in
-            let (yaku, hudi) = yakuForDecomposition(d, context: context)
+            let (yaku, hudi) = yakuForDecomposition(d, context: context, fulouBC: fulouBC)
             return (yaku, hudi.fu)
         }
         let best = candidates.max(by: {
@@ -387,11 +392,57 @@ extension Hule {
         return (yaku: best?.0 ?? [], fu: best?.1 ?? 30)
     }
 
+    // 副露グループ（ラベル配列）を BlockCounts に変換する
+    // 刻子（同牌3枚）と順子（連番3枚）を認識する
+    private static func fulouBlockCounts(_ fulouGroups: [[String]]) -> BlockCounts {
+        var bc = BlockCounts()
+        for group in fulouGroups {
+            let norms = group.map { normalize($0) }.filter { $0 != "_" && $0.count == 2 }
+            guard norms.count >= 3 else { continue }
+            let tiles3 = Array(norms.prefix(3))
+            let unique = Set(tiles3)
+            if unique.count == 1 {
+                // 刻子
+                let tile = tiles3[0]
+                guard let suitChar = tile.first,
+                      let num = Int(String(tile.last!)), num >= 1 else { continue }
+                let suit = String(suitChar)
+                let idx = num - 1
+                let limit = suit == "z" ? 7 : 9
+                guard idx < limit else { continue }
+                bc.kezi[suit]?[idx] += 1
+            } else {
+                // 順子
+                let suits = tiles3.compactMap { $0.first.map(String.init) }
+                let nums  = tiles3.compactMap { Int(String($0.last!)) }.sorted()
+                guard Set(suits).count == 1, suits[0] != "z",
+                      nums.count == 3, nums[1] == nums[0] + 1, nums[2] == nums[0] + 2 else { continue }
+                let suit = suits[0]
+                let idx  = nums[0] - 1
+                guard idx >= 0 && idx < 7 else { continue }
+                bc.shunzi[suit]?[idx] += 1
+            }
+        }
+        return bc
+    }
+
+    // 2つの BlockCounts を加算して返す（shunzi / kezi のみ）
+    private static func addBlockCounts(_ a: BlockCounts, _ b: BlockCounts) -> BlockCounts {
+        var result = a
+        for suit in ["m", "p", "s"] {
+            if let arr = b.shunzi[suit] { for i in arr.indices { result.shunzi[suit]?[i] += arr[i] } }
+            if let arr = b.kezi[suit]   { for i in arr.indices { result.kezi[suit]?[i]   += arr[i] } }
+        }
+        if let arr = b.kezi["z"] { for i in arr.indices { result.kezi["z"]?[i] += arr[i] } }
+        return result
+    }
+
     private static func yakuForDecomposition(
         _ decomposition: BlockCounts,
-        context: HuleContext
+        context: HuleContext,
+        fulouBC: BlockCounts = BlockCounts()
     ) -> ([Yaku], Hudi) {
-        let hudi = buildHudi(decomposition: decomposition, context: context)
+        let hudi = buildHudi(decomposition: decomposition, fulouBC: fulouBC, context: context)
         var yaku: [Yaku] = []
         func add(_ y: Yaku?) { if let y { yaku.append(y) } }
 
@@ -444,28 +495,32 @@ extension Hule {
     // MARK: - Hudi 構築
 
     private static func buildHudi(
-        decomposition: BlockCounts,
+        decomposition: BlockCounts,   // 手牌の面子分解
+        fulouBC: BlockCounts = BlockCounts(),  // 副露面子のブロック
         context: HuleContext
     ) -> Hudi {
         let sum = { (d: [String: [Int]]) in d.values.flatMap { $0 }.reduce(0, +) }
-        let nShunzi = sum(decomposition.shunzi)
-        let nKezi   = sum(decomposition.kezi)
 
-        let jantai  = findJantai(decomposition: decomposition)
-        let nYaojiu = countYaojiuMentsu(decomposition: decomposition)
-        let nZipai  = countZipaiMentsu(decomposition: decomposition)
+        // 手牌 + 副露をマージした合計でカウント
+        let merged  = addBlockCounts(decomposition, fulouBC)
+        let nShunzi = sum(merged.shunzi)
+        let nKezi   = sum(merged.kezi)
 
-        // 暗刻数: 門前なら全刻子が暗刻。副露時は 0 とする（TODO: 副露詳細対応）
-        let nAnkezi = context.menqian ? nKezi : 0
+        // 手牌内の刻子はすべて暗刻、副露刻子は明刻
+        let nAnkezi = sum(decomposition.kezi)
+
+        let jantai  = findJantai(decomposition: decomposition)   // 雀頭は手牌から
+        let nYaojiu = countYaojiuMentsu(decomposition: merged)
+        let nZipai  = countZipaiMentsu(decomposition: merged)
 
         let pinghu = checkPinghuCondition(
             nShunzi: nShunzi, nKezi: nKezi, jantai: jantai,
-            decomposition: decomposition, context: context
+            decomposition: merged, context: context
         )
         let danqi = checkDanqiCondition(decomposition: decomposition, winTile: context.winTile)
 
         let fu = computeFu(
-            decomposition: decomposition,
+            decomposition: merged,
             jantai: jantai, danqi: danqi, pinghu: pinghu,
             isAllAnkezi: context.menqian,
             context: context
@@ -475,8 +530,9 @@ extension Hule {
             fu: fu,
             menqian: context.menqian,
             zimo: context.zimo,
-            shunzi: decomposition.shunzi,
-            kezi: decomposition.kezi,
+            shunzi: merged.shunzi,
+            kezi: merged.kezi,
+            toitsu: merged.toitsu,
             nShunzi: nShunzi,
             nKezi: nKezi,
             nAnkezi: nAnkezi,
@@ -633,8 +689,22 @@ extension Hule {
     }
 
     private static func checkChiitoitsu(_ hudi: Hudi, _ ctx: HuleContext) -> Yaku? {
-        // 七対子は getYaku() で winningDecompositions の外側で処理済み
-        return nil
+        // nShunzi==0 && nKezi==0 は chiitoitsuDecomposition から来た七対子形
+        guard ctx.menqian, hudi.nShunzi == 0, hudi.nKezi == 0 else { return nil }
+        return Yaku(name: "七対子", fanshu: 2)
+    }
+
+    /// 七対子用の [BlockCounts] を生成（toitsu に7対子を格納）
+    private static func chiitoitsuDecompositions(_ tileCounts: [String: Int]) -> [BlockCounts] {
+        var bc = BlockCounts()
+        for (tile, _) in tileCounts {
+            guard tile.count == 2,
+                  let suitChar = tile.first,
+                  let num = Int(String(tile.last!)) else { continue }
+            let suit = String(suitChar)
+            bc.toitsu[suit]?[num - 1] += 1
+        }
+        return [bc]
     }
 
     private static func checkToitoi(_ hudi: Hudi, _ ctx: HuleContext) -> Yaku? {
@@ -679,9 +749,12 @@ extension Hule {
         let usedSuits = ["m", "p", "s"].filter { suit in
             (hudi.shunzi[suit]?.reduce(0, +) ?? 0) > 0 ||
             (hudi.kezi[suit]?.reduce(0, +) ?? 0) > 0 ||
+            (hudi.toitsu[suit]?.reduce(0, +) ?? 0) > 0 ||
             hudi.jantai.hasPrefix(suit)
         }
-        let hasZipai = (hudi.kezi["z"]?.reduce(0, +) ?? 0) > 0 || hudi.jantai.hasPrefix("z")
+        let hasZipai = (hudi.kezi["z"]?.reduce(0, +) ?? 0) > 0 ||
+                       (hudi.toitsu["z"]?.reduce(0, +) ?? 0) > 0 ||
+                       hudi.jantai.hasPrefix("z")
         guard usedSuits.count == 1 && hasZipai else { return nil }
         return Yaku(name: "混一色", fanshu: ctx.menqian ? 3 : 2)
     }
@@ -697,9 +770,12 @@ extension Hule {
         let usedSuits = ["m", "p", "s"].filter { suit in
             (hudi.shunzi[suit]?.reduce(0, +) ?? 0) > 0 ||
             (hudi.kezi[suit]?.reduce(0, +) ?? 0) > 0 ||
+            (hudi.toitsu[suit]?.reduce(0, +) ?? 0) > 0 ||
             hudi.jantai.hasPrefix(suit)
         }
-        let hasZipai = (hudi.kezi["z"]?.reduce(0, +) ?? 0) > 0 || hudi.jantai.hasPrefix("z")
+        let hasZipai = (hudi.kezi["z"]?.reduce(0, +) ?? 0) > 0 ||
+                       (hudi.toitsu["z"]?.reduce(0, +) ?? 0) > 0 ||
+                       hudi.jantai.hasPrefix("z")
         guard usedSuits.count == 1 && !hasZipai else { return nil }
         return Yaku(name: "清一色", fanshu: ctx.menqian ? 6 : 5)
     }

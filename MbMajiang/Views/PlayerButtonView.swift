@@ -8,6 +8,7 @@
 import SwiftUI
 
 // MARK: - PlayerButtonAction
+
 enum PlayerButtonAction: CaseIterable, Hashable {
     case cancel  // ×
     case noten   // ノー聴
@@ -34,7 +35,7 @@ enum PlayerButtonAction: CaseIterable, Hashable {
     }
 
     // ボタンの背景色
-    nonisolated var color: Color {
+     var color: Color {
         switch self {
         case .cancel:         return Color(white: 0.35)
         case .noten:          return Color(red: 0.5, green: 0.3, blue: 0.1)
