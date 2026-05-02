@@ -52,7 +52,7 @@ class Player {
             if self.status.isLizhi {
                 // リーチ中: ツモ和了できる場合のみボタン表示、それ以外は自動ツモ切り
                 let tiles = self.shoupai.allLabels
-                if Hule.isHule(tiles) && hasYaku(tiles: tiles, isZimo: true, status: status) {
+                if hasYaku(tiles: tiles, isZimo: true, status: status) {
                     self.status.availableButtonActions = [.zimo]
                 } else {
                     // ボタンなし → processPlayerActions がツモ切りを実行
@@ -63,7 +63,7 @@ class Player {
             } else {
                 var buttons: Set<PlayerButtonAction> = []
                 let tiles = self.shoupai.allLabels
-                if Hule.isHule(tiles) && hasYaku(tiles: tiles, isZimo: true, status: status) {
+                if hasYaku(tiles: tiles, isZimo: true, status: status) {
                     buttons.insert(.zimo)
                     buttons.insert(.cancel)
                 }
@@ -99,8 +99,8 @@ class Player {
             dihu: false,
             winTile: isZimo ? Hule.normalize(self.shoupai.zimo?.label ?? "") : Hule.normalize(dapai ?? "")
         )
-        let fulouGroups = self.shoupai.fulou.map { $0.map { $0.label } }
-        return !Hule.getYaku(tiles: tiles, context: context, fulouGroups: fulouGroups).yaku.isEmpty
+//        let fulouGroups = self.shoupai.fulou.map { $0.map { $0.label } }
+        return !Hule.getYaku(tiles: tiles, context: context, fulouTiles: shoupai.fulouTiles).yaku.isEmpty
     }
     
     // テンパイかつ門前なら立直宣言可能（点数チェックは Game 側で行う）
@@ -130,7 +130,7 @@ class Player {
 
         // ロン判定
         let tiles = self.shoupai.visibleLabels + [label]
-        if Hule.isHule(tiles) && hasYaku(tiles: tiles, isZimo: false, dapai: label, status: status) {
+        if hasYaku(tiles: tiles, isZimo: false, dapai: label, status: status) {
             buttons.insert(.rong)
         }
 
@@ -317,7 +317,7 @@ class AIPlayer: Player {
     override func onZimo(_ status: GameStatus) {
         if isCurrentId(status.player) {
             let tiles = self.shoupai.allLabels
-            if Hule.isHule(tiles) && hasYaku(tiles: tiles, isZimo: true, status: status) {
+            if hasYaku(tiles: tiles, isZimo: true, status: status) {
                 self.status.action = .hule  // ツモアガリ
             } else {
                 selectDapai()
@@ -332,7 +332,7 @@ class AIPlayer: Player {
         if !isCurrentId(status.player),
            let label = status.dapai {
             let tiles = self.shoupai.visibleLabels + [label]
-            if Hule.isHule(tiles) && hasYaku(tiles: tiles, isZimo: false, dapai: label, status: status) {
+            if hasYaku(tiles: tiles, isZimo: false, dapai: label, status: status) {
                 self.status.action = .hule
                 return
             }

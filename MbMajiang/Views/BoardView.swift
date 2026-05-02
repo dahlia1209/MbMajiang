@@ -12,12 +12,14 @@ struct BoardView: View {
     @State private var game: Game
     /// Previewや開発時にボタンを強制表示するための上書きセット（本番では空のまま）
     private let debugActions: Set<PlayerButtonAction>
+    private let autoStart: Bool
     /// デバッグ: 全プレイヤーの手牌を公開するトグル
     @State private var revealAll: Bool = false
 
-    init(game: Game, debugActions: Set<PlayerButtonAction> ) {
+    init(game: Game, debugActions: Set<PlayerButtonAction>, autoStart: Bool = true) {
         self._game = State(initialValue: game)
         self.debugActions = debugActions
+        self.autoStart = autoStart
     }
 
     /// 実際に表示するボタン（gameのactionsが空の場合はdebugActionsを使用）
@@ -143,6 +145,7 @@ struct BoardView: View {
     // MARK: - ゲーム進行
     // ゲームロジックはGame.advance()/processPlayerActions()が担うため、startを呼ぶだけ
     func setupGame() {
+        guard autoStart else { return }
         game.start()
     }
 }
@@ -151,21 +154,59 @@ struct BoardView: View {
     BoardView(game: Game(), debugActions: [])
 }
 
-#Preview("ツモ和了ボタン", traits: .landscapeLeft) {
-    BoardView(game: Game(), debugActions: [.cancel, .zimo])
+#Preview("七対子ツモ和了", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    // 七対子: m1×2, m3×2, p5×2, s7×2, z1×2, z3×2, z5×2
+    let bingpai = ["m1","m1","m3","m3","p5","p5","s7","s7","z1","z1","z3","z3","z5"]
+    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
+    game.board.shan.shoupai[0].zimo = Pai("z5")
+    game.status.zimo = "z5"
+    game.hule(player: 0, kind: .zimo)
+    return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
-#Preview("リーチボタン", traits: .landscapeLeft) {
-    BoardView(game: Game(), debugActions: [.cancel, .lizhi])
+#Preview("一気通貫ロン和了", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    // 一気通貫: m1-2-3, m4-5-6, m7-8-9(ロン), p3×3, s7×2
+    let bingpai = ["m1","m2","m3","m4","m5","m6","m7","m8","p3","p3","p3","s7","s7"]
+    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
+    game.status.player = 1   // 放銃者
+    game.status.dapai = "m9"
+    game.hule(player: 0, kind: .rong)
+    return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
-#Preview("ロン・チー・ポンボタン", traits: .landscapeLeft) {
-    BoardView(game: Game(), debugActions: [.cancel, .chi, .peng, .rong])
+#Preview("副露ありロン和了", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    // 白ポン + 断么九: 手牌 m2-3-4, p5-6-7, s3-4-5, s7×2(対) + z5×3(ポン副露)
+    let bingpai = ["m2","m3","m4","p5","p6","p7","s3","s4","s5","s7"]
+    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
+    var nakiPai=Pai("z5");nakiPai.rotated=true
+    game.board.shan.shoupai[0].fulou = [[nakiPai, Pai("z5"), Pai("z5")]]
+    game.players[0].status.isMenqian = false
+    game.status.player = 2   // 放銃者
+    game.status.dapai = "s7"
+    game.hule(player: 0, kind: .rong)
+    return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
-#Preview("全ボタン", traits: .landscapeLeft) {
-    BoardView(game: Game(), debugActions: [.cancel, .noten, .chi, .peng, .gang, .lizhi, .rong, .zimo, .pingju])
+#Preview("副露ありタンヤオ和了", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    let bingpai = ["p5","p6","p7","s3","s4","s5","s2","s2","s7","s8",]
+    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
+    var nakiPai=Pai("p2");nakiPai.rotated=true
+    game.board.shan.shoupai[0].fulou = [[nakiPai, Pai("p3"), Pai("p4")]]
+    game.players[0].status.isMenqian = false
+    game.status.player = 2   // 放銃者
+    game.status.dapai = "s6"
+    game.hule(player: 0, kind: .rong)
+    return BoardView(game: game, debugActions: [], autoStart: false)
 }
+
 
 #Preview("終局サマリー", traits: .landscapeLeft) {
     let history: [RoundRecord] = [

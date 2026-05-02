@@ -64,20 +64,25 @@ struct HuleDialogView: View {
 
     // MARK: - ドラ表示
     private var doraRow: some View {
+        HStack(spacing: 16) {
+            doraLine(label: "ドラ",   pais: result.baopai)
+            doraLine(label: "裏ドラ", pais: result.libaopai)
+        }
+    }
+
+    private func doraLine(label: String, pais: [Pai]) -> some View {
         HStack(spacing: 8) {
-            Text("ドラ")
+            Text(label)
                 .font(.system(size: 13))
                 .foregroundColor(.gray)
             HStack(spacing: 0) {
-                ForEach(result.baopai.indices, id: \.self) { i in
-                    PaiView(result.baopai[i].label)
+                ForEach(pais.indices, id: \.self) { i in
+                    PaiView(pais[i].label)
                 }
-                // 未開放スロット（最大5枚）
-                ForEach(result.baopai.count..<5, id: \.self) { _ in
+                ForEach(pais.count..<5, id: \.self) { _ in
                     PaiView("_", false)
                 }
             }
-            Spacer()
         }
     }
 
@@ -96,6 +101,15 @@ struct HuleDialogView: View {
                         RoundedRectangle(cornerRadius: 3)
                             .stroke(Color.yellow, lineWidth: 1.5)
                     )
+            }
+            // 副露グループ
+            ForEach(result.fulou.indices, id: \.self) { gi in
+                Spacer().frame(width: 8)
+                HStack(spacing: 0) {
+                    ForEach(result.fulou[gi].indices, id: \.self) { pi in
+                        PaiView(pai: result.fulou[gi][pi])
+                    }
+                }
             }
         }
     }
@@ -228,31 +242,42 @@ struct HuleDialogView: View {
 
 // MARK: - Preview
 #Preview(traits: .landscapeLeft) {
+    let bingpai: [Pai] = ["m5","m6","m7","p5","p6","p7","s2","s2","s4","s4","s4","s6","s7"].map { Pai($0) }
+    let hupai: [(name: String, fan: Int)] = [("断幺九", 1), ("三色同順", 2)]
+    let afterScores: [(feng: Feng, points: Int)] = [(.西, 25000), (.北, 25000), (.東, 25000), (.南, 25000)]
     let result = HuleResult(
-        kind: .zimo,
-        hulePlayer: 0,
-        bingpai: ["m5","m6","m7","p5","p6","p7","s2","s2","s4","s4","s4","s6","s7"].map { Pai($0) },
-        winTile: Pai("s5"),
-        baopai: [Pai("z7")],
-        hupai: [("断幺九", 1), ("三色同順", 2)],
+        kind: .zimo, hulePlayer: 0,
+        bingpai: bingpai, fulou: [[Pai]](), winTile: Pai("s5"),
+        baopai: [Pai("z7")], hupai: hupai,
         fu: 30, totalFan: 3, points: 5200,
-        scoreChanges: [-5200, 0, 5200, 0],
-        afterScores: [(.西, 25000), (.北, 25000), (.東, 25000), (.南, 25000)],
-        honba: 1, lizhibang: 0
-    )
+        scoreChanges: [-5200, 0, 5200, 0], afterScores: afterScores,
+        honba: 1, lizhibang: 0)
     HuleDialogView(result: result) {}
 }
 
-#Preview("流局", traits: .landscapeLeft) {
+#Preview("副露あり", traits: .landscapeLeft) {
+    var nakiPai = Pai("z5"); nakiPai.rotated = true
+    let bingpai: [Pai] = ["m2","m3","m4","p5","p6","p7","s3","s4","s5","s7"].map { Pai($0) }
+    let fulou: [[Pai]] = [[nakiPai, Pai("z5"), Pai("z5")]]
+    let hupai: [(name: String, fan: Int)] = [("白", 1), ("断么九", 1)]
+    let afterScores: [(feng: Feng, points: Int)] = [(.東, 28900), (.南, 25000), (.西, 21100), (.北, 25000)]
     let result = HuleResult(
-        kind: .pingju,
-        hulePlayer: nil,
-        bingpai: [],
-        winTile: nil,
+        kind: .rong, hulePlayer: 0,
+        bingpai: bingpai, fulou: fulou, winTile: Pai("s7"),
+        baopai: [Pai("m3")], hupai: hupai,
+        fu: 30, totalFan: 2, points: 3900,
+        scoreChanges: [3900, 0, -3900, 0], afterScores: afterScores,
+        honba: 0, lizhibang: 0)
+    return HuleDialogView(result: result) {}
+}
+
+#Preview("流局", traits: .landscapeLeft) {
+    let afterScores: [(feng: Feng, points: Int)] = [(.東, 25000), (.南, 25000), (.西, 25000), (.北, 25000)]
+    let result = HuleResult(
+        kind: .pingju, hulePlayer: nil,
+        bingpai: [], fulou: [[Pai]](), winTile: nil,
         baopai: [Pai("z7")],
-        scoreChanges: [0, 0, 0, 0],
-        afterScores: [(.東, 25000), (.南, 25000), (.西, 25000), (.北, 25000)],
-        honba: 0, lizhibang: 0
-    )
+        scoreChanges: [0, 0, 0, 0], afterScores: afterScores,
+        honba: 0, lizhibang: 0)
     HuleDialogView(result: result) {}
 }

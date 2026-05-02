@@ -334,8 +334,12 @@ class Game {
             }
         }()
 
-        let fulouGroups = player.shoupai.fulou.map { $0.map { $0.label } }
-        let score    = Hule.getYaku(tiles: tiles, context: context, fulouGroups: fulouGroups)
+//        let fulouGroups = player.shoupai.fulou.map { $0.map { $0.label } }
+        let baopai   = board.shan.wangpai.baopai.map { $0.label }
+        let libaopai = context.lizhi
+            ? Array(board.shan.wangpai.libaopai.prefix(baopai.count)).map { $0.label }
+            : []
+        let score = Hule.getYaku(tiles: tiles, context: context, baopai: baopai, libaopai: libaopai,fulouTiles: player.shoupai.fulouTiles)
         let hupai    = score.yaku.map { (name: $0.name, fan: $0.fanshu) }
         let fu       = score.fu
         let totalFan = score.yaku.reduce(0) { $0 + $1.fanshu }
@@ -364,8 +368,12 @@ class Game {
             kind: kind,
             hulePlayer: kind == .pingju ? nil : idx,
             bingpai: player.shoupai.bingpai.filter { !$0.hidden },
+            fulou: player.shoupai.fulou,
             winTile: winTile,
             baopai: board.shan.wangpai.baopai,
+            libaopai: context.lizhi
+                ? Array(board.shan.wangpai.libaopai.prefix(board.shan.wangpai.baopai.count))
+                : [],
             hupai: hupai,
             fu: fu,
             totalFan: totalFan,

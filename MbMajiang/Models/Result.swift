@@ -33,8 +33,10 @@ struct HuleResult {
     var kind: Kind
     var hulePlayer: Int?       // 和了プレイヤー index（流局時は nil）
     var bingpai: [Pai]         // 手牌（表示用・hidden除去済み）
+    var fulou: [[Pai]] = []    // 副露グループ（表示順）
     var winTile: Pai?          // 和了牌（ツモ牌 or ロン牌）
     var baopai: [Pai]          // ドラ表示牌
+    var libaopai: [Pai] = []   // 裏ドラ表示牌（リーチ和了時のみ）
     var hupai: [(name: String, fan: Int)] = []  // 役一覧（未実装時は空）
     var fu: Int = 0
     var totalFan: Int = 0

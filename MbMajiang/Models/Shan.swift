@@ -52,6 +52,34 @@ class Shoupai{
         return (suitBase[suit] ?? 400) + numOrder
     }
 
+    // fulou を parseFulouTiles 用のコンパクト文字列配列に変換
+    // 刻子: "m999"、順子: "p123"、暗槓: "z1111+"、明槓: "z3333-"
+    // TODO: Hule.normalize により赤牌情報が失われる（例: m0 → m5）。
+    //       修正方法: normalize をやめ元ラベルをそのまま使い、parseFulouTiles 側で 0→5 に正規化する。
+    var fulouTiles: [String] {
+        fulou.compactMap { group in
+            let labels = group.map { Hule.normalize($0.label) }
+                              .filter { $0 != "_" && $0.count == 2 }
+            guard labels.count >= 3,
+                  let suitChar = labels.first?.first else { return nil }
+            let suit = String(suitChar)
+            let nums = labels.compactMap { Int(String($0.last!)) }
+
+            if labels.count == 4 && Set(nums).count == 1 {
+                // 槓子: rotated牌なし → 暗槓(+), あり → 明槓(-)
+                let suffix = group.contains { $0.rotated } ? "-" : "+"
+                return suit + nums.map { String($0) }.joined() + suffix
+            } else if labels.count == 3 && Set(nums).count == 1 {
+                // 刻子
+                return suit + nums.map { String($0) }.joined()
+            } else if labels.count == 3 && suit != "z" {
+                // 順子
+                return suit + nums.sorted().map { String($0) }.joined()
+            }
+            return nil
+        }
+    }
+
     // 表示中の bingpai ラベル（hidden 除外）
     var visibleLabels: [String] { bingpai.filter { !$0.hidden }.map { $0.label } }
 
