@@ -14,9 +14,7 @@ class Player {
     var shoupai: Shoupai
     var he: He
     var status: PlayerStatus = PlayerStatus()
-    
     var isHuman: Bool { true }
-    
     // Game.advance() がセット → アクション確定時に呼んでゲームループを再開
     var onActionReady: (() -> Void)?
     
@@ -28,7 +26,7 @@ class Player {
     
     
     func callback(status: GameStatus) {
-        switch status.action {
+        switch status.phase {
         case .kaiju:  onKaiju(status)
         case .qipai:  onQipai(status)
         case .zimo:   onZimo(status)
@@ -39,7 +37,7 @@ class Player {
     }
     
     func onKaiju(_ status: GameStatus) {
-        self.status.action = .none
+        self.status.decision = .none
         self.status.availableButtonActions = []
     }
     
@@ -54,12 +52,17 @@ class Player {
                 let tiles = self.shoupai.allLabels
                 if hasYaku(tiles: tiles, isZimo: true, status: status) {
                     self.status.availableButtonActions = [.zimo]
-                } else {
+                }
+                
+                
+                if self.status.availableButtonActions.isEmpty{
                     // ボタンなし → processPlayerActions がツモ切りを実行
-                    self.status.action = .dapai
+                    self.status.decision = .dapai
                     self.status.selectedIdx = self.shoupai.bingpai.count
                     self.status.availableButtonActions = []
                 }
+                
+                
             } else {
                 var buttons: Set<PlayerButtonAction> = []
                 let tiles = self.shoupai.allLabels
@@ -68,53 +71,29 @@ class Player {
                     buttons.insert(.cancel)
                 }
                 // 門前テンパイなら .lizhi を表示
-                if canDeclareRiichi() {
+                if status.paishu >= 4 && canDeclareRiichi() {
                     self.status.lizhiCandidateIndices=lizhiCandidateIndices()
                     buttons.insert(.lizhi)
                     if buttons.isEmpty { buttons.insert(.cancel) }
                 }
                 self.status.availableButtonActions = buttons
             }
+            
+            //暗カン
+            if status.paishu >= 1 && (!shoupai.gangzi.isEmpty) {
+                self.status.availableButtonActions = [.angang]
+            }
+            //加カン
+            if status.paishu >= 1 && (!shoupai.kagangzi.isEmpty) {
+                self.status.availableButtonActions = [.kagang]
+            }
+            
         } else {
-            self.status.action = .none
+            self.status.decision = .none
             self.status.availableButtonActions = []
         }
     }
     
-    func hasYaku(tiles: [String], isZimo: Bool, dapai: String? = nil, status: GameStatus) -> Bool {
-        let menfeng = status.menfengList.indices.contains(id) ? status.menfengList[id] : .東
-        let context = HuleContext(
-            zhuangfeng: status.zhuangfeng,
-            menfeng: menfeng,
-            zimo: isZimo,
-            menqian: self.status.isMenqian,
-            lizhi: self.status.isLizhi,
-            daburi: false,
-            yifa: false,
-            qianggang: false,
-            lingshang: false,
-            haidi: false,
-            hedi: false,
-            tianhu: false,
-            dihu: false,
-            winTile: isZimo ? Hule.normalize(self.shoupai.zimo?.label ?? "") : Hule.normalize(dapai ?? "")
-        )
-//        let fulouGroups = self.shoupai.fulou.map { $0.map { $0.label } }
-        return !Hule.getYaku(tiles: tiles, context: context, fulouTiles: shoupai.fulouTiles).yaku.isEmpty
-    }
-    
-    // テンパイかつ門前なら立直宣言可能（点数チェックは Game 側で行う）
-    func canDeclareRiichi() -> Bool {
-        guard status.isMenqian else { return false }
-        // 14枚のうちいずれか1枚を切ってシャンテン0になる牌があればテンパイ
-        let all = shoupai.allLabels.map { Hule.normalize($0) }
-        guard all.count == 14 else { return false }
-        return all.indices.contains { i in
-            var rest = all
-            rest.remove(at: i)
-            return Hule.xiangting(rest) == 0
-        }
-    }
     
     func onDapai(_ status: GameStatus) {
         self.status.chiCandidates = []
@@ -122,7 +101,7 @@ class Player {
 
         guard self.id != status.player, let label = status.dapai else {
             self.status.availableButtonActions = []
-            self.status.action = .none
+            self.status.decision = .none
             return
         }
 
@@ -134,8 +113,8 @@ class Player {
             buttons.insert(.rong)
         }
 
-        // ポン判定（リーチ中は不可）
-        if !self.status.isLizhi {
+        // ポン・カン判定（リーチ中・牌切れは不可）
+        if !self.status.isLizhi && status.paishu >= 1 {
             let normalized = Hule.normalize(label)
             let matchCount = shoupai.bingpai.filter {
                 !$0.hidden && Hule.normalize($0.label) == normalized
@@ -143,10 +122,13 @@ class Player {
             if matchCount >= 2 {
                 buttons.insert(.peng)
             }
+            if matchCount >= 3 {
+                buttons.insert(.minggang)
+            }
         }
 
-        // チー判定（上家からのみ、リーチ中は不可）
-        if isNextPlayer && !self.status.isLizhi {
+        // チー判定（上家からのみ、リーチ中・牌切れは不可）
+        if isNextPlayer && !self.status.isLizhi && status.paishu >= 1 {
             let candidates = findChiCandidates(dapai: label)
             if !candidates.isEmpty {
                 buttons.insert(.chi)
@@ -156,11 +138,11 @@ class Player {
 
         if !buttons.isEmpty {
             buttons.insert(.cancel)
-            self.status.action = .none  // ユーザー入力待ち（.zimoは辞退/チー確定後にセット）
+            self.status.decision = .none  // ユーザー入力待ち（.zimoは辞退/チー確定後にセット）
         } else if isNextPlayer {
-            self.status.action = .zimo
+            self.status.decision = .zimo
         } else {
-            self.status.action = .none
+            self.status.decision = .none
         }
         self.status.availableButtonActions = buttons
     }
@@ -203,49 +185,82 @@ class Player {
     func onFulou(_ status: GameStatus) {
         self.status.availableButtonActions = []
         // 副露したプレイヤー（player 0）は UI タップで打牌するため action は none のまま
-        self.status.action = .none
+        self.status.decision = .none
     }
     
-    func peng(_ group: [Pai]){
-        guard group.count==3 else {return}
-        var peng: [Pai] = []
-        for _ in 0..<2 {
-            if let index = shoupai.bingpai.firstIndex(where: { $0.label == group[0].label }) {
-                peng.append(shoupai.bingpai.remove(at: index))
-            }
-        }
-        if let tajiaindex = group.firstIndex(where: {$0.rotated == true}){
-            peng.insert(group[tajiaindex],at:tajiaindex)
-        }
-        shoupai.fulou.insert(peng, at: 0)
+    func peng(dapai: Pai, tajia: Jia, startIdx: Int = 0) {
+          let pengCandidate = shoupai.getPengCandidate(dapai.label).sorted(by: >)
+          guard pengCandidate.count >= 2, startIdx + 1 < pengCandidate.count || pengCandidate.count == 2 else { return }
+                                                           
+          let selected = pengCandidate.count >= 3
+              ? Array(pengCandidate[startIdx..<(startIdx + 2)])
+              : pengCandidate
+       
+          var peng = selected.map { shoupai.bingpai.remove(at: $0) }
+          switch tajia {
+          case .shangjia: peng.insert(dapai, at: 0)
+          case .duimian:  peng.insert(dapai, at: 1)
+          default:        peng.append(dapai)
+          }
+          shoupai.fulou.insert(peng, at: 0)
+          shoupai.lipai()
+          status.isMenqian = false
+      }
+    
+    func minggang(dapai:Pai,tajia:Jia){
+        let minggangCandidate = shoupai.getMinggangCandidate(dapai.label).sorted(by: >)
+        guard minggangCandidate.count == 3 else {return}
+        var minggang = minggangCandidate.map{shoupai.bingpai.remove(at: $0)}
+        switch tajia {
+          case .shangjia: minggang.insert(dapai, at: 0)
+          case .duimian:  minggang.insert(dapai, at: 1)
+          default:        minggang.append(dapai)
+          }
+        shoupai.fulou.insert(minggang, at: 0)
         shoupai.lipai()
         status.isMenqian = false
     }
     
-    func chi(_ group: [Pai]){
-        guard group.count==3 else {return}
-        guard status.selectedChi.count == 2 else { return }
-        var chi: [Pai] = []
-        
-        for index in status.selectedChi.sorted(by: >) {
-            chi.append(shoupai.bingpai.remove(at: index))
-        }
-        
-        if let tajiaindex = group.firstIndex(where: {$0.rotated == true}){
-            chi.insert(group[tajiaindex],at:tajiaindex)
+    func angang() {
+        guard let selectedAngang = status.selectedAngang else { return }
+        shoupai.lipai()
+        let indices = shoupai.allLabels.indices.filter { shoupai.allLabels[$0] == selectedAngang }.sorted(by: >)
+        guard indices.count == 4 else { return }
+        var angang = indices.map { shoupai.bingpai.remove(at: $0) }
+        angang[0].revealed = false
+        angang[3].revealed = false
+        shoupai.fulou.insert(angang, at: 0)
+        shoupai.lipai()
+        status.selectedAngang = nil
+    }
+    
+    func kagang() {
+        guard let selectedKagang = status.selectedKagang else { return }
+        shoupai.lipai()
+        guard let index = shoupai.allLabels.indices.firstIndex(where: { shoupai.allLabels[$0] == selectedKagang }) else { return }
+        let kapai = shoupai.bingpai.remove(at: index)
+        let normalized = Hule.normalize(selectedKagang)
+        guard let fulouIndex = shoupai.fulou.indices.firstIndex(where: { i in shoupai.fulou[i].count == 3 && shoupai.fulou[i].allSatisfy { Hule.normalize($0.label) == normalized }
+        }) else { return }
+        shoupai.fulou[fulouIndex].insert(kapai, at: 0)
+        shoupai.lipai()
+        status.selectedKagang = nil
+    }
+
+    
+    func chi(dapai: Pai, tajia: Jia = .shangjia) {
+        let chiCandidate = status.selectedChi.sorted(by: >)
+        guard chiCandidate.count == 2 else { return }
+        var chi = chiCandidate.map { shoupai.bingpai.remove(at: $0) }
+        switch tajia {
+        case .shangjia: chi.insert(dapai, at: 0)
+        case .duimian:  chi.insert(dapai, at: 1)
+        default:        chi.append(dapai)
         }
         shoupai.fulou.insert(chi, at: 0)
         shoupai.lipai()
         status.isMenqian = false
-        status.selectedChi=[]
-    }
-    
-    func fulou(jia:Jia,fulouPai:Pai,fulouType:Actions){
-//        var group: [Pai] = []
-//        
-//        shoupai.fulou.insert(group, at: 0)
-//        shoupai.lipai()
-//        status.isMenqian = false
+        status.selectedChi = []
     }
     
     func dapai()->Pai{
@@ -267,8 +282,111 @@ class Player {
         return dapai
     }
     
+    func consumeDecision() {
+        status.decision = .none
+    }
+    
+    func hasYaku(tiles: [String], isZimo: Bool, dapai: String? = nil, status: GameStatus) -> Bool {
+        let menfeng = status.menfengList.indices.contains(id) ? status.menfengList[id] : .東
+        let context = HuleContext(
+            zhuangfeng: status.zhuangfeng,
+            menfeng: menfeng,
+            zimo: isZimo,
+            menqian: self.status.isMenqian,
+            lizhi: self.status.isLizhi,
+            daburi: false,
+            yifa: false,
+            qianggang: false,
+            lingshang: false,
+            haidi: false,
+            hedi: false,
+            tianhu: false,
+            dihu: false,
+            winTile: isZimo ? Hule.normalize(self.shoupai.zimo?.label ?? "") : Hule.normalize(dapai ?? "")
+        )
+        return !Hule.getYaku(tiles: tiles, context: context, fulouTiles: shoupai.fulouTiles).yaku.isEmpty
+    }
+    
+    func isFuriten(afterLizhiDiscards:[String]=[],junDiscards:[String]=[]) -> Bool {
+        let currentTiles = shoupai.visibleLabels.map { Hule.normalize($0) }
+        let target = Set(he.qipai.map { Hule.normalize($0.label) } + afterLizhiDiscards + junDiscards)
+        //捨て牌にアガリ牌が含まれていないか確認
+        return target.contains { label in
+            let allTiles = currentTiles + [label]
+            guard allTiles.count >= 2 && (allTiles.count - 2) % 3 == 0 else { return false }
+            return !Hule.winningDecompositions(allTiles).isEmpty
+        }
+    }
+    
+    // テンパイかつ門前なら立直宣言可能（点数チェックは Game 側で行う）
+    func canDeclareRiichi() -> Bool {
+        guard status.isMenqian else { return false }
+        let all = shoupai.allLabels.map { Hule.normalize($0) }
+        return all.indices.contains { i in
+            var rest = all
+            rest.remove(at: i)
+            let xiangting = Hule.xiangting(rest)
+            return xiangting == 0
+        }
+    }
+    
+    func commitLizhi() {
+        status.shouldRotateNextDapai = true
+        status.isLizhi = true
+        status.isYifa = true
+        status.pendingLizhiPayment = false
+    }
+    
+    func pendingLizhi() {
+        status.shouldRotateNextDapai = true
+        status.isSelectingRiichi = false
+        status.lizhiCandidateIndices = []
+        status.pendingLizhiPayment = true
+    }
+
+    func rotateLastDapai() {
+        let lastIdx = he.qipai.count - 1
+        guard lastIdx >= 0 else { return }
+        he.qipai[lastIdx].rotated = true
+    }
+
+    func clearRotateFlag() {
+        status.shouldRotateNextDapai = false
+    }
+
+    func cancelYifa() {
+        status.isYifa = false
+    }
+
+    func startChiSelection() {
+        status.isSelectingChi = true
+    }
+
+    func startRiichiSelection() {
+        status.isSelectingRiichi = true
+        status.decision = .lizhi
+    }
+
+    func startAngangSelection() {
+        status.isSelectingAngang = true
+    }
+    
+    func startKagangSelection() {
+        status.isSelectingKagang = true
+    }
+
+    func prepareAngang(label: String) {
+        status.selectedAngang = label
+        status.decision = .angang
+    }
+
+    func prepareKagang(label: String) {
+        status.selectedKagang = label
+        status.decision = .kagang
+    }
+
     func selectDapai(_ index: Int) {
-        status.action = .dapai
+        status.decision = .dapai
         status.selectedIdx = index
         onActionReady?()
         onActionReady = nil
@@ -279,14 +397,34 @@ class Player {
         guard status.selectedChi.count >= 2 else { return }
 
         status.isSelectingChi = false
-        status.action = .chi
+        status.decision = .chi
+        onActionReady?()
+        onActionReady = nil
+    }
+    
+    func selectAngang(_ index: Int) {
+        let label = shoupai.allLabels[index]
+        status.selectedAngang = label
+        status.isSelectingAngang = false
+        status.decision = .angang
+        status.selectedIdx = index
+        onActionReady?()
+        onActionReady = nil
+    }
+    
+    func selectKagang(_ index: Int) {
+        let label = shoupai.allLabels[index]
+        status.selectedKagang = label
+        status.isSelectingKagang = false
+        status.decision = .kagang
+        status.selectedIdx = index
         onActionReady?()
         onActionReady = nil
     }
     
     func lizhiCandidateIndices()-> Set<Int> {
         let all = shoupai.allLabels.map { Hule.normalize($0) }
-        guard all.count == 14 else { return [] }
+        guard all.count >= 2, (all.count - 2) % 3 == 0 else {return [] }
         var result: Set<Int> = []
         let bingpaiCount = shoupai.bingpai.count
         for i in all.indices {
@@ -306,7 +444,7 @@ class AIPlayer: Player {
     override var isHuman: Bool { false }
     
     override func onKaiju(_ status: GameStatus) {
-        self.status.action = .none
+        self.status.decision = .none
     }
     
     // qipai後の最初のツモ割り当てはprocessPlayerActions側で行うため、ここでは何もしない
@@ -318,12 +456,12 @@ class AIPlayer: Player {
         if isCurrentId(status.player) {
             let tiles = self.shoupai.allLabels
             if hasYaku(tiles: tiles, isZimo: true, status: status) {
-                self.status.action = .hule  // ツモアガリ
+                self.status.decision = .hule  // ツモアガリ
             } else {
                 selectDapai()
             }
         } else {
-            self.status.action = .none
+            self.status.decision = .none
         }
     }
     
@@ -332,15 +470,19 @@ class AIPlayer: Player {
         if !isCurrentId(status.player),
            let label = status.dapai {
             let tiles = self.shoupai.visibleLabels + [label]
-            if hasYaku(tiles: tiles, isZimo: false, dapai: label, status: status) {
-                self.status.action = .hule
+            if hasYaku(tiles: tiles, isZimo: false, dapai: label, status: status) &&
+               !isFuriten(
+                   afterLizhiDiscards: status.afterLizhiDiscards[self.id],
+                   junDiscards: status.junDiscards[self.id]
+               ) {
+                self.status.decision = .hule
                 return
             }
         }
         if isNextId(status.player) {
-            self.status.action = .zimo
+            self.status.decision = .zimo
         } else {
-            self.status.action = .none
+            self.status.decision = .none
         }
     }
     
@@ -350,7 +492,7 @@ class AIPlayer: Player {
             // 副露（ポン）後の打牌: シャンテン数最小の牌を選ぶ
             selectDapai()
         } else {
-            self.status.action = .none
+            self.status.decision = .none
         }
     }
     
@@ -365,7 +507,7 @@ class AIPlayer: Player {
         
         // 14枚でない場合はツモ切りにフォールバック
         guard allLabels.count == 14 else {
-            self.status.action = .dapai
+            self.status.decision = .dapai
             self.status.selectedIdx = shoupai.bingpai.count
             return
         }
@@ -384,7 +526,7 @@ class AIPlayer: Player {
             }
         }
         
-        self.status.action = .dapai
+        self.status.decision = .dapai
         self.status.selectedIdx = bestIdx
     }
     
@@ -402,7 +544,7 @@ class AIPlayer: Player {
 
 // MARK: - PlayerStatus
 struct PlayerStatus {
-    var action: Actions = .none
+    var decision: Actions = .none
     var dapai: String? = nil
     var selectedIdx: Int? = nil
     var zimo: String? = nil
@@ -414,5 +556,12 @@ struct PlayerStatus {
     var lizhiCandidateIndices: Set<Int>=[]
     var isSelectingRiichi:Bool = false
     var isSelectingChi:Bool = false
+    var isSelectingAngang:Bool = false
+    var isSelectingKagang:Bool = false
+    var isSelectingDapai:Bool = false
     var selectedChi: [Int] = []
+    var selectedAngang: String? = nil
+    var selectedKagang: String? = nil
+    var shouldRotateNextDapai: Bool = false
+    var pendingLizhiPayment: Bool = false
 }

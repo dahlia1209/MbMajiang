@@ -41,6 +41,7 @@ struct HuleResult {
     var fu: Int = 0
     var totalFan: Int = 0
     var points: Int = 0
+    var tenpaiPlayers: [Int] = []  // テンパイプレイヤー index（流局時のみ使用）
     var scoreChanges: [Int]    // 各プレイヤーの得点変動 [0...3]（未実装時は 0）
     var afterScores: [(feng: Feng, points: Int)]  // 変動後の得点
     var honba: Int

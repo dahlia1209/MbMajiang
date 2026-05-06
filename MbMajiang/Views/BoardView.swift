@@ -27,20 +27,59 @@ struct BoardView: View {
         game.playerActions.isEmpty ? debugActions : game.playerActions
     }
 
-    /// チー選択中にハイライトするインデックス
-    /// 1枚目未選択: chiCandidatesに含まれる全インデックス
-    /// 1枚目選択済み: 同じペアの残り1枚
-    private var chiHighlightedIndices: Set<Int>? {
-        guard let human = game.humanPlayer, human.status.isSelectingChi else { return nil }
-        let candidates = human.status.chiCandidates
-        let selected = human.status.selectedChi
-        if selected.isEmpty {
-            return Set(candidates.flatMap { $0 })
-        } else {
-            return Set(candidates.filter { $0.contains(selected[0]) }.flatMap { $0 })
-                .subtracting([selected[0]])
-        }
+    private var isPingju: Bool {
+        game.huleResult?.kind == .pingju
     }
+
+    private func isTenpai(_ playerIdx: Int) -> Bool {
+        let tiles = game.board.shan.shoupai[playerIdx].visibleLabels.map { Hule.normalize($0) }
+        return Hule.xiangting(tiles) == 0
+    }
+
+    private var highlightedIndices: Set<Int>? {
+        guard let human = game.humanPlayer else { return nil }
+        if human.status.isSelectingChi {
+            let candidates = human.status.chiCandidates
+            let selected = human.status.selectedChi
+            if selected.isEmpty {
+                return Set(candidates.flatMap { $0 })
+            } else {
+                return Set(candidates.filter { $0.contains(selected[0]) }.flatMap { $0 })
+                    .subtracting([selected[0]])
+            }
+        } else if human.status.isSelectingAngang {
+            let gangziLabels = Set(human.shoupai.gangzi)
+            return Set(human.shoupai.allLabels.indices.filter { gangziLabels.contains(human.shoupai.allLabels[$0]) })
+        } else if human.status.isSelectingKagang {
+            let gangziLabels = Set(human.shoupai.kagangzi)
+            return Set(human.shoupai.allLabels.indices.filter { gangziLabels.contains(human.shoupai.allLabels[$0]) })
+        } else if human.status.isSelectingRiichi {
+            return Set(human.status.lizhiCandidateIndices)
+        }
+        
+        return nil
+    }
+
+    private func lastDapaiIndex(for playerIdx: Int) -> Int? {
+        guard let last = game.status.lastDapai, last.player == playerIdx else { return nil }
+        return last.index
+    }
+
+    private var onTapPaiHandler: ((Int) -> Void)? {
+        if game.isSelectingChi {
+            return { self.game.humanPlayer?.selectChi($0) }
+        }else if game.isSelectingAngang {
+            return { self.game.humanPlayer?.selectAngang($0) }
+        }else if game.isSelectingKagang {
+            return { self.game.humanPlayer?.selectKagang($0) }
+        }else if game.isSelectingDapai {
+            return { self.game.humanPlayer?.selectDapai($0) }
+        }
+
+        return nil
+    }
+    
+    
 
     var body: some View {
         ZStack {
@@ -48,53 +87,61 @@ struct BoardView: View {
 
             VStack {
                 Spacer()
-                ScoreBoardView(game.board.score, game.board.shan.wangpai, game.board.shan.shan.count)
+                ScoreBoardView(game.board.score, game.board.shan.wangpai, game.board.shan.paishu,
+                               lizhiPlayers: game.players.map { $0.status.isLizhi })
                 Spacer()
             }
             .padding(.horizontal, 40)
 
-            HeView(he: game.board.shan.he[0])
+            HeView(he: game.board.shan.he[0], highlightedIndex: lastDapaiIndex(for: 0))
                 .scaleEffect(0.8)
                 .offset(y: 100)
-            HeView(he: game.board.shan.he[1])
+            HeView(he: game.board.shan.he[1], highlightedIndex: lastDapaiIndex(for: 1))
                 .scaleEffect(0.8)
                 .offset(y: 170)
                 .rotationEffect(.degrees(270))
-            HeView(he: game.board.shan.he[2])
+            HeView(he: game.board.shan.he[2], highlightedIndex: lastDapaiIndex(for: 2))
                 .scaleEffect(0.8)
                 .offset(y: 100)
                 .rotationEffect(.degrees(180))
-            HeView(he: game.board.shan.he[3])
+            HeView(he: game.board.shan.he[3], highlightedIndex: lastDapaiIndex(for: 3))
                 .scaleEffect(0.8)
                 .offset(y: 170)
                 .rotationEffect(.degrees(90))
 
             ShoupaiView(
                 shoupai: game.board.shan.shoupai[0],
-                onTapPai: game.canDapai ? { game.humanPlayer?.selectDapai($0) }
-                        : (game.humanPlayer?.status.isSelectingChi == true) ? { game.humanPlayer?.selectChi($0) }
-                        : nil,
-                highlightedIndices: game.humanPlayer?.status.isSelectingRiichi == true
-                    ? game.humanPlayer?.status.lizhiCandidateIndices
-                    : chiHighlightedIndices,
+                onTapPai: onTapPaiHandler,
+                highlightedIndices: highlightedIndices,
                 selectedIndices: Set(game.humanPlayer?.status.selectedChi ?? [])
             )
             .offset(y: 180)
 
-            ShoupaiView(shoupai: game.board.shan.shoupai[1], isTajia: !revealAll)
+            ShoupaiView(shoupai: game.board.shan.shoupai[1], isTajia: !revealAll && !(isPingju && isTenpai(1)))
                 .offset(y: 260)
                 .rotationEffect(.degrees(270))
-            ShoupaiView(shoupai: game.board.shan.shoupai[2], isTajia: !revealAll)
+            ShoupaiView(shoupai: game.board.shan.shoupai[2], isTajia: !revealAll && !(isPingju && isTenpai(2)))
                 .offset(y: 160)
                 .rotationEffect(.degrees(180))
-            ShoupaiView(shoupai: game.board.shan.shoupai[3], isTajia: !revealAll)
+            ShoupaiView(shoupai: game.board.shan.shoupai[3], isTajia: !revealAll && !(isPingju && isTenpai(3)))
                 .offset(y: 250)
                 .rotationEffect(.degrees(90))
 
             // プレイヤーアクションボタン
             if !displayedActions.isEmpty {
-                PlayerButtonView(visibleActions: displayedActions) { action in
-                    game.handlePlayerAction(action)
+                VStack(spacing: 4) {
+                    if let message = game.infoMessage {
+                        Text(message)
+                            .font(.system(size: 13, weight: .bold))
+                            .foregroundColor(.red)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.black.opacity(0.7))
+                            .cornerRadius(6)
+                    }
+                    PlayerButtonView(visibleActions: displayedActions) { action in
+                        game.handlePlayerAction(action)
+                    }
                 }
                 .scaleEffect(0.7)
                 .offset(y: 140)
@@ -123,16 +170,15 @@ struct BoardView: View {
         // 和了・流局ダイアログ
         .overlay {
             if let result = game.huleResult {
-                HuleDialogView(result: result) {
+                RoundResultView(result: result) {
                     game.dismissHuleResult()
                 }
             }
         }
         // 終局サマリー
         .overlay {
-            if let summary = game.summaryResult {
-                SummaryView(result: summary) {
-                    game.summaryResult = nil
+            if let summary = game.gameResult {
+                GameResultView(result: summary) {
                     dismiss()
                 }
             }
@@ -154,6 +200,15 @@ struct BoardView: View {
     BoardView(game: Game(), debugActions: [])
 }
 
+#Preview("槓子", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    game.debugHands = [0: ["m1","m1","m1","m1","p5","p5","p5","p5","z1","z1","z1","z1","z5"]]
+    game.board.shan.shoupai[0].zimo = Pai("z5")
+    game.status.zimo = "z5"
+    return BoardView(game: game, debugActions: [], autoStart: false)
+}
+
 #Preview("七対子ツモ和了", traits: .landscapeLeft) {
     let game = Game()
     game.kaiju()
@@ -163,6 +218,53 @@ struct BoardView: View {
     game.board.shan.shoupai[0].zimo = Pai("z5")
     game.status.zimo = "z5"
     game.hule(player: 0, kind: .zimo)
+    return BoardView(game: game, debugActions: [], autoStart: false)
+}
+
+
+#Preview("七対子混老頭ツモ和了", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    // 七対子: m1×2, m3×2, p5×2, s7×2, z1×2, z3×2, z5×2
+    let bingpai = ["m1","m1","m9","m9","p1","p1","s9","s9","z1","z1","z3","z3","z5"]
+    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
+    game.status.player = 1   // 放銃者
+    game.status.dapai = "z5"
+    game.hule(player: 0, kind: .rong)
+    return BoardView(game: game, debugActions: [], autoStart: false)
+}
+
+#Preview("四暗刻ツモ和了", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    let bingpai = ["m1","m1","m1","m9","m9","m9","s9","s9","s9","z1","z1","z3","z3"]
+    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
+    game.board.shan.shoupai[0].zimo = Pai("z3")
+    game.status.zimo = "z3"
+    game.hule(player: 0, kind: .zimo)
+    return BoardView(game: game, debugActions: [], autoStart: false)
+}
+
+#Preview("国士無双13面", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    let bingpai = ["m1","m9","p1","p9","s1","s9","z1","z2","z3","z4","z5","z6","z7"]
+    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
+    game.board.shan.shoupai[0].zimo = Pai("z5")
+    game.status.zimo = "z1"
+    game.hule(player: 0, kind: .zimo)
+    return BoardView(game: game, debugActions: [], autoStart: false)
+}
+
+#Preview("トイトイ三暗刻ロン和了", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    // 一気通貫: m1-2-3, m4-5-6, m7-8-9(ロン), p3×3, s7×2
+    let bingpai = ["m1","m1","m1","m9","m9","m9","s9","s9","s9","z1","z1","z3","z3"]
+    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
+    game.status.player = 1   // 放銃者
+    game.status.dapai = "z3"
+    game.hule(player: 0, kind: .rong)
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
@@ -207,8 +309,36 @@ struct BoardView: View {
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
+#Preview("聴牌", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    game.debugHands = [
+        0: ["m1","m2","m3","p5","p6","p7","s3","s4","s5","s6","s7","z3","z3"],  // テンパイ z1/z3
+        1: ["m4","m6","m8","p1","p3","p5","s7","s8","s9","z2","z2","z5","z5"],
+        2: ["m7","p4","p8","s2","s4","s6","z4","z6","z7","m2","p2","s1","m9"],
+        3: ["m1","m3","m5","p6","p7","p9","s1","s3","s5","z7","z7","p9","p9"],
+    ]
+    
+    return BoardView(game: game, debugActions: [], autoStart: false)
+}
 
-#Preview("終局サマリー", traits: .landscapeLeft) {
+
+#Preview("流局", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    game.debugHands = [
+        0: ["m1","m2","m3","p5","p6","p7","s3","s4","s5","z1","z1","z3","z3"],  // テンパイ z1/z3
+        1: ["m4","m5","m6","p1","p2","p3","s7","s8","s9","z2","z2","z5","z5"],  // テンパイ z2/z5
+        2: ["m7","p4","p8","s2","s4","s6","z4","z6","z7","m2","p2","s1","m9"],  // ノーテン
+        3: ["m1","m2","m3","p6","p7","p8","s1","s2","s3","z7","z7","p9","p9"],  // テンパイ z7/p9
+    ]
+    game.board.score.honba = 1
+    game.board.score.lizhibang = 2
+    game.pingju()
+    return BoardView(game: game, debugActions: [], autoStart: false)
+}
+
+#Preview("対局終了", traits: .landscapeLeft) {
     let history: [RoundRecord] = [
         RoundRecord(jushu: .東一局, honba: 0, kind: .rong,   hulePlayer: 2, dealerPlayer: 0, scoreChanges: [0,     0, +2000,  -2000], lizhiPlayers: []),
         RoundRecord(jushu: .東一局, honba: 1, kind: .rong,   hulePlayer: 2, dealerPlayer: 0, scoreChanges: [-3200, 0, +3200,  0    ], lizhiPlayers: []),
@@ -218,9 +348,10 @@ struct BoardView: View {
         RoundRecord(jushu: .東四局, honba: 0, kind: .rong,   hulePlayer: 2, dealerPlayer: 3, scoreChanges: [-2600, 0, +3600, 0    ], lizhiPlayers: [2]),
         RoundRecord(jushu: .南一局, honba: 0, kind: .pingju, hulePlayer: nil, dealerPlayer: 0, scoreChanges: [0, 0, 0, 0],           lizhiPlayers: []),
         RoundRecord(jushu: .南一局, honba: 1, kind: .zimo,   hulePlayer: 3, dealerPlayer: 0, scoreChanges: [-8000, 0, 0,    +8000 ], lizhiPlayers: []),
+        RoundRecord(jushu: .南一局, honba: 1, kind: .zimo,   hulePlayer: 3, dealerPlayer: 0, scoreChanges: [-8000, 0, 0,    +8000 ], lizhiPlayers: []),
     ]
     let game = Game()
-    game.summaryResult = SummaryResult(
+    game.gameResult = SummaryResult(
         roundHistory: history,
         finalScores: [
             (feng: .西, points: -6800),

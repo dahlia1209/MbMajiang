@@ -83,8 +83,36 @@ class Shoupai{
     // 表示中の bingpai ラベル（hidden 除外）
     var visibleLabels: [String] { bingpai.filter { !$0.hidden }.map { $0.label } }
 
-    // ツモ和了判定用: bingpai + zimo の14枚ラベル
+    // bingpai + zimo
     var allLabels: [String] { visibleLabels + (zimo.map { [$0.label] } ?? []) }
+    
+    var gangzi: [String] {  Dictionary(grouping: allLabels, by: { $0 })
+            .filter { $0.value.count >= 4 }
+            .map { $0.key }   }
+
+    // ポン済みグループに追加できる手牌ラベルを返す（加槓候補）
+    var kagangzi: [String] {
+        let pengNormLabels = Set(
+            fulou
+                .filter { $0.count == 3 && Set($0.map { Hule.normalize($0.label) }).count == 1 }
+                .compactMap { $0.first.map { Hule.normalize($0.label) } }
+        )
+        return Dictionary(grouping: allLabels, by: { Hule.normalize($0) })
+            .filter { pengNormLabels.contains($0.key) }
+            .compactMap { $0.value.first }
+    }
+    
+    func getPengCandidate(_ label:String)-> [Int] {
+        let indices = allLabels.indices.filter { allLabels[$0] == label }
+        guard indices.count >= 2 else {return []}
+        return indices
+    }
+    
+    func getMinggangCandidate(_ label:String)-> [Int] {
+        let indices = allLabels.indices.filter { allLabels[$0] == label }
+        guard indices.count >= 3 else {return []}
+        return indices
+    }
 }
 
 // MARK: - Pai
@@ -131,6 +159,11 @@ struct Wangpai{
         self.libaopai = Array(wangpai[5..<14])
     }
     
+    mutating func revealGangdora(){
+        guard !libaopai.isEmpty else {return}
+        let baopai = libaopai.removeFirst()
+        self.baopai.append(baopai)
+    }
 }
 
 // MARK: - Shan
@@ -184,13 +217,8 @@ struct Shan {
         return self.shan.removeLast()
     }
     
-//    private func revealNextDora() {
-//        let revealed = board.shan.wangpai.baopai.count
-//        // libaopai[0〜4] がリーチドラ表示牌（最大5枚）
-//        if revealed < board.shan.wangpai.libaopai.count {
-//            let next = board.shan.wangpai.libaopai[revealed - 1]
-//            board.shan.wangpai.baopai.append(next)
-//        }
-//    }
+    var paishu: Int {
+        return shan.count - (4 - wangpai.lingshang.count)
+    }
     
 }

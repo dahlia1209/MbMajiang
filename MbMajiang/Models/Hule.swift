@@ -9,27 +9,6 @@ import Foundation
 
 
 
-// MARK: - Hudi（面子分解 + 符情報）
-//struct Hudi {
-//    var fu: Int                     // 符合計
-//        var menqian: Bool               // 門前か
-//        var zimo: Bool                  // ツモ和了か
-//        var shunzi: [String: [Int]]     // 順子 (m/p/s): 開始番号-1 が index (有効 0〜6)
-//        var kezi:   [String: [Int]]     // 刻子 (m/p/s/z): 牌番号-1 が index
-//        var toitsu: [String: [Int]]     // 対子 (m/p/s/z): 牌番号-1 が index（七対子のスート判定に使用）
-//        var nShunzi: Int                // 順子の総数
-//        var nKezi:   Int                // 刻子（槓子含む）の総数
-//        var nAnkezi: Int                // 暗刻（暗槓含む）の総数
-//        var nGangzi: Int                // 槓子の総数
-//        var nYaojiu: Int                // 么九牌を含む面子の数
-//        var nZipai:  Int                // 字牌を含む面子の数
-//    var danqi:   Bool               // 単騎待ちか
-//    var pinghu:  Bool               // 平和か
-//        var zhuangfeng: Feng            // 場風
-//        var menfeng:    Feng            // 自風
-//        var jantai: String              // 雀頭牌ラベル（役判定用）
-//}
-
 // MARK: - BlockCounts（ブロック種別×スートのカウント配列）
 struct BlockCounts: Hashable {
     var shunzi:     [String: [Int]]  // 順子 (m/p/s): 開始番号-1 が index (有効 0〜6)
@@ -42,7 +21,7 @@ struct BlockCounts: Hashable {
     var kanchan:    [String: [Int]]  // カンチャン (m/p/s)
     var toitsu:     [String: [Int]]  // 対子 (m/p/s/z)
     var isolated:   [String: [Int]]  // 孤立牌 (m/p/s/z)
-
+    
     // 刻子（明刻＋暗刻）
     var kezi: [String: [Int]] {
         var result: [String: [Int]] = [:]
@@ -52,7 +31,7 @@ struct BlockCounts: Hashable {
         result["z"] = zip(ankezi["z"]!, mingkezi["z"]!).map { $0 + $1 }
         return result
     }
-
+    
     // 槓子（明槓＋暗槓）
     var gangzi: [String: [Int]] {
         var result: [String: [Int]] = [:]
@@ -62,17 +41,17 @@ struct BlockCounts: Hashable {
         result["z"] = zip(angangzi["z"]!, minggangzi["z"]!).map { $0 + $1 }
         return result
     }
-
+    
     var nShunzi:   Int { shunzi.values.flatMap { $0 }.reduce(0, +) }
-    var nKezi:     Int { kezi.values.flatMap { $0 }.reduce(0, +) + gangzi.values.flatMap { $0 }.reduce(0, +) }
-    var nAnkezi:   Int = 0
+    var nKezi:     Int { kezi.values.flatMap { $0 }.reduce(0, +) }
+    var nAnkezi:   Int { ankezi.values.flatMap { $0 }.reduce(0, +) }
     var nGangzi:   Int { gangzi.values.flatMap { $0 }.reduce(0, +) }
-    var nAngangzi: Int = 0
+    var nAngangzi: Int { angangzi.values.flatMap { $0 }.reduce(0, +) }
     var nToitsu:   Int { toitsu.values.flatMap { $0 }.reduce(0, +) }
     var jantai:    String { getJantai() }
     var nYaojiu:   Int { getNYaojiu() }
     var nZipai:    Int { kezi["z"]?.reduce(0, +) ?? 0 }
-
+    
     init() {
         let s9 = [Int](repeating: 0, count: 9)
         let s7 = [Int](repeating: 0, count: 7)
@@ -102,6 +81,7 @@ struct BlockCounts: Hashable {
         var count = 0
         for suit in ["m", "p", "s"] {
             if let arr = shunzi[suit]  { count += arr[0] + arr[6] }
+            if let arr = gangzi[suit]    { count += arr[0] + arr[8] }
             if let arr = kezi[suit]    { count += arr[0] + arr[8] }
             if let arr = ryanmen[suit] { count += arr[0] + arr[7] }
             if let arr = penchan[suit] { count += arr.reduce(0, +) }
@@ -109,11 +89,39 @@ struct BlockCounts: Hashable {
             if let arr = toitsu[suit]  { count += arr[0] + arr[8] }
             if let arr = isolated[suit]{ count += arr[0] + arr[8] }
         }
+        if let arr = gangzi["z"]     { count += arr.reduce(0, +) }
         if let arr = kezi["z"]     { count += arr.reduce(0, +) }
         if let arr = toitsu["z"]   { count += arr.reduce(0, +) }
         if let arr = isolated["z"] { count += arr.reduce(0, +) }
         return count
     }
+    
+    func isChitoitsu() -> Bool {
+        guard nToitsu == 7 else { return false }
+        for suit in ["m", "p", "s", "z"] {
+            if let arr = toitsu[suit], arr.contains(where: { $0 >= 2 }) {
+                return false
+            }
+        }
+        return true
+    }
+    
+    func isKokushimuso() -> Bool {
+        guard nShunzi == 0, nKezi == 0, nGangzi == 0 else { return false }
+        guard nToitsu == 1 else { return false }
+        let j = jantai
+        guard j.first == "z" || j.hasSuffix("1") || j.hasSuffix("9") else { return false }
+        let yaojiu: [(String, Int)] = [
+            ("m",0),("m",8),("p",0),("p",8),("s",0),("s",8),
+            ("z",0),("z",1),("z",2),("z",3),("z",4),("z",5),("z",6)
+        ]
+        for (suit, idx) in yaojiu {
+            let total = (isolated[suit]?[idx] ?? 0) + (toitsu[suit]?[idx] ?? 0)
+            guard total > 0 else { return false }
+        }
+        return true
+    }
+
 }
 
 
@@ -139,10 +147,10 @@ struct HuleContext {
 // MARK: - Yaku（役）
 struct Yaku {
     let name: String
-    let fanshu: Int  // 翻数（役満=13, ダブル役満=26）
+    let fanshu: Int  // 翻数（役満=100, ダブル役満=200）
     
-    static let yakuman = 13
-    static let doubleYakuman = 26
+    static let yakuman = 100
+    static let doubleYakuman = 200
 }
 
 // MARK: - DefenResult（点数計算結果）
@@ -193,6 +201,36 @@ struct Hule {
         return 6 - pairCount
     }
     
+    static func mianziXiangting(_ tiles: [String]) -> Int {
+        guard tiles.count >= 1 && (13 - tiles.count) % 3 == 0
+        else { return 99 }
+        
+        let suitCounts = tilesToSuitCounts(tiles)
+        let combinations = enumerateBlocks(suitCounts: suitCounts)
+        
+        let fulou = (13 - tiles.count) / 3
+        let base = 8 - fulou * 2
+        var minShanten = base
+
+        let sum = { (d: [String: [Int]]) in d.values.flatMap { $0 }.reduce(0, +) }
+        for bc in combinations {
+            let mentsu = sum(bc.shunzi) + sum(bc.kezi)
+            let toitsu = sum(bc.toitsu)
+            let tatsu  = sum(bc.ryanmen) + sum(bc.penchan) + sum(bc.kanchan)
+
+            let cap = (4 - fulou) - mentsu
+            
+            // 雀頭なし: 対子はすべて搭子として計上
+            let s1 = base - 2 * mentsu - min(tatsu + toitsu, cap)
+            // 雀頭あり: 対子を1つ雀頭に充て、残りを搭子として計上
+            let s2 = toitsu > 0 ? base - 2 * mentsu - min(tatsu + toitsu - 1, cap) - 1 : s1
+            
+            minShanten = min(minShanten, min(s1, s2))
+        }
+        
+        return minShanten
+    }
+    
     // 国士無双シャンテン数: 13 - 种類数 - 対子有無
     static func kokushiXiangting(_ tiles: [String]) -> Int {
         guard tiles.count == 13 else { return 99 }
@@ -227,6 +265,55 @@ struct Hule {
     
     
     // MARK: - ブロック列挙
+    
+    // 14枚の和了形を面子分解し、「順子・刻子 4組 + 対子 1組」の全パターンを返す
+    // mentsuOnly: true でターツ・孤立牌の枝を再帰中に打ち切るため効率的
+    static func winningDecompositions(_ bingpaiTiles: [String], _ fulouTiles: [String] = []) -> [BlockCounts] {
+        // 14枚 or 副露後の 11/8/5/2 枚を許容
+        guard bingpaiTiles.count >= 2 && (bingpaiTiles.count - 2) % 3 == 0 else { return [] }
+        let requiredMentsu = (bingpaiTiles.count - 2) / 3  // 14枚→4, 11枚→3, 8枚→2 ...
+        let fulouBC = parseFulouTiles(fulouTiles)
+        let sc = tilesToSuitCounts(bingpaiTiles)
+        let mR = extractSuitBlocks(sc.m, suit: "m", canSeq: true,  mentsuOnly: true)
+        let pR = extractSuitBlocks(sc.p, suit: "p", canSeq: true,  mentsuOnly: true)
+        let sR = extractSuitBlocks(sc.s, suit: "s", canSeq: true,  mentsuOnly: true)
+        let zR = extractSuitBlocks(sc.z, suit: "z", canSeq: false, mentsuOnly: true)
+        var seen = Set<BlockCounts>()
+        var results: [BlockCounts] = []
+        for bm in mR { for bp in pR { for bs in sR { for bz in zR {
+            let hand = mergeBlockCounts(m: bm, p: bp, s: bs, z: bz)
+            let nMentsu = hand.nShunzi + hand.nKezi + hand.nGangzi
+            let nToitsu = hand.nToitsu
+            guard (nMentsu == requiredMentsu && nToitsu == 1) || hand.isChitoitsu() else { continue }
+            let merged = addBlockCounts(hand, fulouBC)
+            if seen.insert(merged).inserted { results.append(merged) }
+        }}}}
+        
+        // 国士無双チェック（門前14枚のみ）
+        if fulouTiles.isEmpty && bingpaiTiles.count == 14 {
+            let yaojiu = ["m1","m9","p1","p9","s1","s9","z1","z2","z3","z4","z5","z6","z7"]
+            var counts: [String: Int] = [:]
+            for t in bingpaiTiles { counts[normalize(t), default: 0] += 1 }
+            if yaojiu.allSatisfy({ counts[$0, default: 0] >= 1 }),
+               let jantaiTile = yaojiu.first(where: { counts[$0, default: 0] >= 2 }) {
+                var bc = BlockCounts()
+                for tile in yaojiu {
+                    guard tile.count == 2,
+                          let suit = tile.first.map(String.init),
+                          let num  = Int(String(tile.last!)) else { continue }
+                    let idx = num - 1
+                    if tile == jantaiTile {
+                        bc.toitsu[suit]?[idx] = 1
+                    } else {
+                        bc.isolated[suit]?[idx] = 1
+                    }
+                }
+                if seen.insert(bc).inserted { results.append(bc) }
+            }
+        }
+
+        return results
+    }
     
     // スート1種のカウント配列から BlockCounts を再帰的にバックトラックで列挙
     private static func extractBlockCounts(
@@ -347,61 +434,6 @@ struct Hule {
         return results
     }
     
-    // 14枚の和了形を面子分解し、「順子・刻子 4組 + 対子 1組」の全パターンを返す
-    // mentsuOnly: true でターツ・孤立牌の枝を再帰中に打ち切るため効率的
-    static func winningDecompositions(_ bingpaiTiles: [String], _ fulouTiles: [String] = []) -> [BlockCounts] {
-        // 14枚 or 副露後の 11/8/5/2 枚を許容
-        guard bingpaiTiles.count >= 2 && (bingpaiTiles.count - 2) % 3 == 0 else { return [] }
-        let requiredMentsu = (bingpaiTiles.count - 2) / 3  // 14枚→4, 11枚→3, 8枚→2 ...
-        let fulouBC = parseFulouTiles(fulouTiles)
-        let sc = tilesToSuitCounts(bingpaiTiles)
-        let mR = extractSuitBlocks(sc.m, suit: "m", canSeq: true,  mentsuOnly: true)
-        let pR = extractSuitBlocks(sc.p, suit: "p", canSeq: true,  mentsuOnly: true)
-        let sR = extractSuitBlocks(sc.s, suit: "s", canSeq: true,  mentsuOnly: true)
-        let zR = extractSuitBlocks(sc.z, suit: "z", canSeq: false, mentsuOnly: true)
-        var seen = Set<BlockCounts>()
-        var results: [BlockCounts] = []
-        for bm in mR { for bp in pR { for bs in sR { for bz in zR {
-            let hand = mergeBlockCounts(m: bm, p: bp, s: bs, z: bz)
-            let nMentsu = hand.nShunzi + hand.nKezi
-            let nToitsu = hand.nToitsu
-            guard (nMentsu == requiredMentsu && nToitsu == 1) || nToitsu == 7 else { continue }
-            let merged = addBlockCounts(hand, fulouBC)
-            if seen.insert(merged).inserted { results.append(merged) }
-        }}}}
-        return results
-    }
-    
-    // enumerateBlocks を使ったメンツ形シャンテン数
-    static func mianziXiangting(_ tiles: [String]) -> Int {
-        
-        guard tiles.count >= 1 && (13 - tiles.count) % 3 == 0
-        else { return 99 }
-        
-        let suitCounts = tilesToSuitCounts(tiles)
-        let combinations = enumerateBlocks(suitCounts: suitCounts)
-        
-        let base = 8 - (13-tiles.count)*2
-        var minShanten = base
-        
-        let sum = { (d: [String: [Int]]) in d.values.flatMap { $0 }.reduce(0, +) }
-        for bc in combinations {
-            let mentsu = sum(bc.shunzi) + sum(bc.kezi)
-            let toitsu = sum(bc.toitsu)
-            let tatsu  = sum(bc.ryanmen) + sum(bc.penchan) + sum(bc.kanchan)
-            
-            let cap = 4  - mentsu
-            
-            // 雀頭なし: 対子はすべて搭子として計上
-            let s1 = base - 2 * mentsu - min(tatsu + toitsu, cap)
-            // 雀頭あり: 対子を1つ雀頭に充て、残りを搭子として計上
-            let s2 = toitsu > 0 ? base - 2 * mentsu - min(tatsu + toitsu - 1, cap) - 1 : s1
-            
-            minShanten = min(minShanten, min(s1, s2))
-        }
-        
-        return minShanten
-    }
     
 }
 
@@ -410,7 +442,6 @@ extension Hule {
     static func getYaku(
         tiles: [String],
         context: HuleContext,
-        //        fulouGroups: [[String]] = [],
         baopai: [String] = [],
         libaopai: [String] = [],
         fulouTiles: [String] = []
@@ -419,37 +450,18 @@ extension Hule {
         //        let fulouBC = fulouBlockCounts(fulouGroups)
         let fulouBC = parseFulouTiles(fulouTiles)
         let expandFulouTiles = fulouTiles.flatMap { Hule.expandFulouTile($0) }
-        
-        // ドラ・裏ドラ計算（正規化前の tiles + 副露牌で赤ドラを区別する）
-        //        let fulouTiles = fulouGroups.flatMap { $0 }.filter { $0 != "_" && $0.count == 2 }
         let allTiles = tiles + expandFulouTiles
         let doraCnt    = doraCount(tiles: allTiles, baopaiLabels: baopai)
         let uraDoraCnt = context.lizhi ? doraCount(tiles: allTiles, baopaiLabels: libaopai) : 0
-        
-        // 国士無双（門前14枚のみ）
-        if fulouTiles.isEmpty && normalized.count == 14 {
-            var counts: [String: Int] = [:]
-            for t in normalized { counts[t, default: 0] += 1 }
-            let yaojiu = ["m1","m9","p1","p9","s1","s9","z1","z2","z3","z4","z5","z6","z7"]
-            if yaojiu.allSatisfy({ counts[$0, default: 0] >= 1 }) &&
-                yaojiu.contains(where: { counts[$0, default: 0] >= 2 }) {
-                let isThirteenWait = yaojiu.contains(where: { counts[$0, default: 0] >= 2 && $0 == context.winTile })
-                let fan = isThirteenWait ? Yaku.doubleYakuman : Yaku.yakuman
-                return (yaku: [Yaku(name: "国士無双", fanshu: fan)], fu: 0)
-            }
-        }
-        
-        // 通常面子形＋七対子
+
+        //アガリ形を分解して役を取得
         let decompositions = winningDecompositions(normalized,fulouTiles)
         guard !decompositions.isEmpty else { return (yaku: [], fu: 30) }
-        
+
         let candidates = decompositions.map { d -> ([Yaku], Int) in
+            let d = context.zimo ? d : adjustForRon(d, winTile: context.winTile)
             let yaku = yakuForDecomposition(d, context: context, fulouBC: fulouBC)
-            let fu = computeFu(
-                decomposition: d,
-//                danqi: false, pinghu: false,
-//                isAllAnkezi: false,
-                context: context)
+            let fu = computeFu(decomposition: d, context: context)
             return (yaku, fu)
         }
         
@@ -458,47 +470,27 @@ extension Hule {
         })
         var resultYaku = best?.0 ?? []
         // ドラ・裏ドラは役あり確定後に追加（単独では和了不可）
-        if !resultYaku.isEmpty {
+        let maxFanshu = resultYaku.max(by: { $0.fanshu < $1.fanshu })?.fanshu ?? 0
+          if maxFanshu > 0 && maxFanshu < 100   {
             if doraCnt    > 0 { resultYaku.append(Yaku(name: "ドラ",   fanshu: doraCnt))    }
             if uraDoraCnt > 0 { resultYaku.append(Yaku(name: "裏ドラ", fanshu: uraDoraCnt)) }
         }
         return (yaku: resultYaku, fu: best?.1 ?? 30)
     }
-    
-    // 副露グループ（ラベル配列）を BlockCounts に変換する
-    // 刻子（同牌3枚）と順子（連番3枚）を認識する
-    //    private static func fulouBlockCounts(_ fulouGroups: [[String]]) -> BlockCounts {
-    //        var bc = BlockCounts()
-    //        for group in fulouGroups {
-    //            let norms = group.map { normalize($0) }.filter { $0 != "_" && $0.count == 2 }
-    //            guard norms.count >= 3 else { continue }
-    //            let tiles3 = Array(norms.prefix(3))
-    //            let unique = Set(tiles3)
-    //            if unique.count == 1 {
-    //                // 刻子
-    //                let tile = tiles3[0]
-    //                guard let suitChar = tile.first,
-    //                      let num = Int(String(tile.last!)), num >= 1 else { continue }
-    //                let suit = String(suitChar)
-    //                let idx = num - 1
-    //                let limit = suit == "z" ? 7 : 9
-    //                guard idx < limit else { continue }
-    //                bc.kezi[suit]?[idx] += 1
-    //            } else {
-    //                // 順子
-    //                let suits = tiles3.compactMap { $0.first.map(String.init) }
-    //                let nums  = tiles3.compactMap { Int(String($0.last!)) }.sorted()
-    //                guard Set(suits).count == 1, suits[0] != "z",
-    //                      nums.count == 3, nums[1] == nums[0] + 1, nums[2] == nums[0] + 2 else { continue }
-    //                let suit = suits[0]
-    //                let idx  = nums[0] - 1
-    //                guard idx >= 0 && idx < 7 else { continue }
-    //                bc.shunzi[suit]?[idx] += 1
-    //            }
-    //        }
-    //        return bc
-    //    }
-    
+    // ロン時: アガリ牌で完成した刻子を暗刻→明刻に補正する
+    private static func adjustForRon(_ d: BlockCounts, winTile: String) -> BlockCounts {
+        guard winTile.count >= 2,
+              let numChar = winTile.dropFirst().first,
+              let num = Int(String(numChar)) else { return d }
+        let suit = String(winTile.prefix(1))
+        let idx = num - 1
+        guard (d.ankezi[suit]?[idx] ?? 0) > 0 else { return d }
+        var d = d
+        d.ankezi[suit]?[idx] -= 1
+        d.mingkezi[suit]?[idx] += 1
+        return d
+    }
+
     // コンパクト文字列1要素を個別タイルラベルに展開する
     // 例: "m123" → ["m1","m2","m3"], "z1111+" → ["z1","z1","z1","z1"]
     static func expandFulouTile(_ s: String) -> [String] {
@@ -569,16 +561,28 @@ extension Hule {
         context: HuleContext,
         fulouBC: BlockCounts = BlockCounts()
     ) -> (
-        [Yaku],
-//        Hudi
+        [Yaku]
     ) {
-//        let hudi = buildHudi(decomposition: decomposition, fulouBC: fulouBC, context: context)
+        
         var yaku: [Yaku] = []
         func add(_ y: Yaku?) { if let y { yaku.append(y) } }
-        
-        // 状況役
+        // 役満
+        add(checkKokushi(decomposition, context))
+        add(checkSuuankou(decomposition, context))
+        add(checkDaisangen(decomposition, context))
+        add(checkShousuushi(decomposition, context))
+        add(checkDaisuushi(decomposition, context))
+        add(checkTsuuiisou(decomposition, context))
+        add(checkRyuuiisou(decomposition, context))
+        add(checkChinroutou(decomposition, context))
+        add(checkChuurenpoutou(decomposition, context))
+        add(checkSuukantsu(decomposition, context))
         add(checkTianhu(decomposition, context))
         add(checkDihu(decomposition, context))
+        
+        if !yaku.isEmpty {return yaku}
+
+        // 状況役
         add(checkMenqianqingzimo(decomposition, context))
         add(checkLizhi(decomposition, context))
         add(checkDaburizhi(decomposition, context))
@@ -596,8 +600,8 @@ extension Hule {
         add(checkSanshokuDoukou(decomposition, context))
         add(checkIttsu(decomposition, context))
         add(checkChanta(decomposition, context))
-        add(checkChiitoitsu(decomposition, context))
         // 通常役（2翻〜）
+        add(checkChiitoitsu(decomposition, context))
         add(checkToitoi(decomposition, context))
         add(checkSanankou(decomposition, context))
         add(checkSankantsu(decomposition, context))
@@ -607,69 +611,11 @@ extension Hule {
         add(checkHonitsu(decomposition, context))
         add(checkJunchan(decomposition, context))
         add(checkChinitsu(decomposition, context))
-        // 役満
-        add(checkKokushi(decomposition, context))
-        add(checkSuuankou(decomposition, context))
-        add(checkDaisangen(decomposition, context))
-        add(checkShousuushi(decomposition, context))
-        add(checkDaisuushi(decomposition, context))
-        add(checkTsuuiisou(decomposition, context))
-        add(checkRyuuiisou(decomposition, context))
-        add(checkChinroutou(decomposition, context))
-        add(checkChuurenpoutou(decomposition, context))
-        add(checkSuukantsu(decomposition, context))
         
-//        return (yaku, hudi)
+        
         return yaku
     }
     
-    // MARK: - Hudi 構築
-    
-//    private static func buildHudi(
-//        decomposition: BlockCounts,
-//        fulouBC: BlockCounts = BlockCounts(),
-//        context: HuleContext
-//    ) -> Hudi {
-//        let sum = { (d: [String: [Int]]) in d.values.flatMap { $0 }.reduce(0, +) }
-//        
-//        // 手牌 + 副露をマージした合計でカウント
-//        let merged  = addBlockCounts(decomposition, fulouBC)
-//        
-//         手牌内の刻子はすべて暗刻、副露刻子は明刻
-//                let nAnkezi = sum(decomposition.kezi)
-//        
-//                let jantai  = findJantai(decomposition: decomposition)
-//                let nYaojiu = countYaojiuMentsu(decomposition: merged)
-//                let nZipai  = countZipaiMentsu(decomposition: merged)
-//        
-//        let pinghu = checkPinghuCondition(decomposition: merged, context: context)
-//        let danqi = checkDanqiCondition(decomposition: decomposition, winTile: context.winTile)
-//        
-//        let fu = computeFu(
-//            decomposition: merged,
-//            context: context
-//        )
-//        
-//        return Hudi(
-//            fu: fu,
-//            //            menqian: context.menqian,
-//            //            zimo: context.zimo,
-//            //            shunzi: merged.shunzi,
-//            //            kezi: merged.kezi,
-//            //            toitsu: merged.toitsu,
-//            //            nShunzi: merged.nShunzi,
-//            //            nKezi: merged.nKezi,
-//            //            nAnkezi: nAnkezi,
-//            //            nGangzi: 0,      // TODO: 槓子は別途入力が必要
-//            //            nYaojiu: decomposition.nYaojiu,
-//            //            nZipai: decomposition.nZipai,
-//            danqi: danqi,
-//            pinghu: pinghu,
-//            //            zhuangfeng: context.zhuangfeng,
-//            //            menfeng: context.menfeng,
-//            //            jantai: decomposition.jantai
-//        )
-//    }
     
     // MARK: - 状況役
     
@@ -811,8 +757,7 @@ extension Hule {
     }
     
     private static func checkChiitoitsu(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // nShunzi==0 && nKezi==0 は chiitoitsuDecomposition から来た七対子形
-        guard ctx.menqian, decomposition.nShunzi == 0, decomposition.nKezi == 0 else { return nil }
+        guard decomposition.isChitoitsu() else { return nil }
         return Yaku(name: "七対子", fanshu: 2)
     }
     
@@ -823,7 +768,7 @@ extension Hule {
     }
     
     private static func checkSanankou(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        guard decomposition.nAnkezi >= 3 else { return nil }
+        guard decomposition.nAnkezi + decomposition.nAngangzi >= 3 else { return nil }
         return Yaku(name: "三暗刻", fanshu: 2)
     }
     
@@ -841,8 +786,12 @@ extension Hule {
     }
     
     private static func checkHonroutou(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        guard decomposition.nYaojiu >= 5  else { return nil }
-        guard decomposition.nShunzi == 0 else { return nil }  // 順子があると混老頭にならない
+        if checkChinitsu(decomposition, ctx) != nil {
+            guard decomposition.nYaojiu >= 5  else { return nil }
+            guard decomposition.nShunzi == 0 else { return nil }  // 順子があると混老頭にならない
+        } else{
+            guard decomposition.nYaojiu >= 7   else { return nil }
+        }
         return Yaku(name: "混老頭", fanshu: 2)
     }
     
@@ -858,6 +807,7 @@ extension Hule {
     private static func checkHonitsu(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
         let usedSuits = ["m", "p", "s"].filter { suit in
             (decomposition.shunzi[suit]?.reduce(0, +) ?? 0) > 0 ||
+            (decomposition.gangzi[suit]?.reduce(0, +) ?? 0) > 0 ||
             (decomposition.kezi[suit]?.reduce(0, +) ?? 0) > 0 ||
             (decomposition.toitsu[suit]?.reduce(0, +) ?? 0) > 0 ||
             decomposition.jantai.hasPrefix(suit)
@@ -879,6 +829,7 @@ extension Hule {
     private static func checkChinitsu(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
         let usedSuits = ["m", "p", "s"].filter { suit in
             (decomposition.shunzi[suit]?.reduce(0, +) ?? 0) > 0 ||
+            (decomposition.gangzi[suit]?.reduce(0, +) ?? 0) > 0 ||
             (decomposition.kezi[suit]?.reduce(0, +) ?? 0) > 0 ||
             (decomposition.toitsu[suit]?.reduce(0, +) ?? 0) > 0 ||
             decomposition.jantai.hasPrefix(suit)
@@ -893,19 +844,15 @@ extension Hule {
     // MARK: - 役満
     
     private static func checkKokushi(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // 国士無双は winningDecompositions() の外で判定が必要（専用の面子形）
-        // TODO: tiles から么九牌13種 + 対子1枚 の形か確認
-        return nil
+        guard  decomposition.isKokushimuso() else { return nil }
+        return Yaku(name: "国士無双", fanshu: Yaku.yakuman)
     }
     
     private static func checkSuuankou(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        //        guard hudi.nAnkezi == 4 else { return nil }
-        //        // 単騎待ちでのアガリはダブル役満
-        //        let fanshu = hudi.danqi ? Yaku.doubleYakuman : Yaku.yakuman
-        //        return Yaku(name: "四暗刻", fanshu: fanshu)
-        // 国士無双は winningDecompositions() の外で判定が必要（専用の面子形）
-        // TODO: tiles から么九牌13種 + 対子1枚 の形か確認
-        return nil
+        guard decomposition.nAnkezi + decomposition.nAngangzi == 4 else { return nil }
+        // 単騎待ちでのアガリはダブル役満
+        let fanshu = checkDanqiCondition(decomposition: decomposition, winTile: ctx.winTile) ? Yaku.doubleYakuman : Yaku.yakuman
+        return Yaku(name: "四暗刻", fanshu: fanshu)
     }
     
     private static func checkDaisangen(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
@@ -950,42 +897,6 @@ extension Hule {
     }
     
     // MARK: - buildHudi ヘルパー
-    
-    // 雀頭（対子）の牌ラベルを返す
-    //    private static func findJantai(decomposition: BlockCounts) -> String {
-    //        for suit in ["m", "p", "s", "z"] {
-    //            guard let arr = decomposition.toitsu[suit] else { continue }
-    //            for (i, cnt) in arr.enumerated() where cnt > 0 {
-    //                return "\(suit)\(i + 1)"
-    //            }
-    //        }
-    //        return ""
-    //    }
-    
-    // 么九牌(1,9)または字牌を含む面子（順子・刻子）の総数
-    private static func countYaojiuMentsu(decomposition: BlockCounts) -> Int {
-        var count = 0
-        for suit in ["m", "p", "s"] {
-            if let arr = decomposition.shunzi[suit] {
-                count += arr[0]  // 1-2-3（1を含む）
-                count += arr[6]  // 7-8-9（9を含む）
-            }
-            if let arr = decomposition.kezi[suit] {
-                count += arr[0]  // 1刻子
-                count += arr[8]  // 9刻子
-            }
-        }
-        // 字牌刻子はすべて么九牌扱い
-        if let arr = decomposition.kezi["z"] {
-            count += arr.reduce(0, +)
-        }
-        return count
-    }
-    
-    // 字牌を含む面子（刻子のみ）の総数
-    private static func countZipaiMentsu(decomposition: BlockCounts) -> Int {
-        return decomposition.kezi["z"]?.reduce(0, +) ?? 0
-    }
     
     // 平和条件: 門前 + 全4面子が順子 + 役牌でない雀頭 + リャンメン待ち
     private static func checkPinghuCondition(
@@ -1129,7 +1040,9 @@ extension Hule {
             case 6, 7:      return 12000
             case 8, 9, 10:  return 16000
             case 11, 12:    return 24000
-            default:        return fan >= 13 ? 32000 : nil
+            case 13..<99:        return 32000
+            case 100..<999: return fan / 100 * 32000
+            default: return nil
             }
         }()
         
@@ -1152,18 +1065,12 @@ extension Hule {
     }
     
     // MARK: - 符計算
-    
     // 符合計を計算して10符単位に切り上げる
     private static func computeFu(
         decomposition: BlockCounts,
-        //        jantai: String,
-//        danqi: Bool,
-//        pinghu: Bool,
-//        isAllAnkezi: Bool,
         context: HuleContext
     ) -> Int {
         // 七対子は25符固定
-//        let sumD = { (d: [String: [Int]]) in d.values.flatMap { $0 }.reduce(0, +) }
         if decomposition.nToitsu == 7 {return 25}
         
         var fu = 20
@@ -1191,6 +1098,7 @@ extension Hule {
         
         return ((fu + 9) / 10) * 10
     }
+    
     
     // 雀頭符: 役牌対子 +2、連風対子 +4、単騎 +2
     private static func jantaiFu(jantai: String, danqi: Bool,

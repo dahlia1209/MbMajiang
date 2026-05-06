@@ -9,6 +9,7 @@ import SwiftUI
 
 struct HeView: View {
     var he: He
+    var highlightedIndex: Int? = nil
 
     // 1行6枚 × 22px
     private let rowWidth: CGFloat = 22 * 6
@@ -21,26 +22,33 @@ struct HeView: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(spacing: 0) {
                 ForEach(row1.indices, id: \.self) { i in
-                        PaiView(row1[i].label)
-                    }
+                    paiCell(row1[i], globalIndex: i)
+                }
             }
-            .frame(width: rowWidth, alignment: .leading) // ← 固定幅・左揃え
+            .frame(width: rowWidth, alignment: .leading)
 
             HStack(spacing: 0) {
                 ForEach(row2.indices, id: \.self) { i in
-                        PaiView(row2[i].label)
-                    }
+                    paiCell(row2[i], globalIndex: 6 + i)
+                }
             }
             .frame(width: rowWidth, alignment: .leading)
 
             HStack(spacing: 0) {
                 ForEach(row3.indices, id: \.self) { i in
-                        PaiView(row3[i].label)
-                    }
+                    paiCell(row3[i], globalIndex: 12 + i)
+                }
             }
             .frame(width: rowWidth, alignment: .leading)
         }
         .frame(width: rowWidth, height: 30 * 3, alignment: .topLeading)
+    }
+
+    @ViewBuilder
+    private func paiCell(_ pai: Pai, globalIndex: Int) -> some View {
+        PaiView(pai.label)
+            .rotationEffect(pai.rotated ? .degrees(90) : .degrees(0))
+            .opacity(globalIndex == highlightedIndex ? 0.5 : 1.0)
     }
 }
 

@@ -9,6 +9,7 @@ struct ScoreBoardView: View {
     var score:Score
     var wangpai:Wangpai
     var paishu: Int
+    var lizhiPlayers: [Bool] = [false, false, false, false]
     
     var body: some View {
         VStack(spacing: 0) {
@@ -60,31 +61,49 @@ struct ScoreBoardView: View {
     // MARK: - Score Section
     var scoreSection: some View {
         ZStack {
-            Text("\(score.defen[0].0.label)　\(score.defen[0].1, specifier: "%d")")
-                .offset(y: 20)
-                .foregroundColor(Color(red: 0.9, green: 0.78, blue: 0.28))
-            
-            Text("\(score.defen[1].0.label)　\(score.defen[1].1, specifier: "%d")")
-                .offset(x: 60)
-            
-            Text("\(score.defen[2].0.label)　\(score.defen[2].1, specifier: "%d")")
-                .offset(y: -20)
-            
-            Text("\(score.defen[3].0.label)　\(score.defen[3].1, specifier: "%d")")
-                .offset(x: -60)
+            scoreLabel(playerIdx: 0).offset(y: 20)
+            scoreLabel(playerIdx: 1).offset(x: 80)
+            scoreLabel(playerIdx: 2).offset(y: -15)
+            scoreLabel(playerIdx: 3).offset(x: -80)
         }
         .font(.system(size: 12, weight: .regular))
         .foregroundColor(.white.opacity(0.7))
         .frame(maxWidth: .infinity)
-        .frame(height: 50)
+        .frame(height: 60)
+    }
+
+    private func scoreLabel(playerIdx: Int) -> some View {
+        let isLizhi = lizhiPlayers.indices.contains(playerIdx) && lizhiPlayers[playerIdx]
+        let feng = score.defen[playerIdx].0.label
+        let pts  = score.defen[playerIdx].1
+        return VStack(spacing: 2) {
+            if isLizhi {
+                Image("1000")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(height: 6)
+            }
+//            Image("1000")
+//                .resizable()
+//                .scaledToFit()
+//                .frame(height: 6)
+            Text("\(feng)　\(pts)")
+                .foregroundColor(playerIdx == 0
+                    ? Color(red: 0.9, green: 0.78, blue: 0.28)
+                    : .white.opacity(0.7))
+            
+            
+            
+        }
     }
 }
 
 extension ScoreBoardView {
-    init(_ score: Score, _ wangpai:Wangpai, _ paishu:Int)  {
+    init(_ score: Score, _ wangpai: Wangpai, _ paishu: Int, lizhiPlayers: [Bool] = [false, false, false, false]) {
         self.score = score
-        self.wangpai=wangpai
-        self.paishu=paishu
+        self.wangpai = wangpai
+        self.paishu = paishu
+        self.lizhiPlayers = lizhiPlayers
     }
 }
 

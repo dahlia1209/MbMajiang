@@ -31,13 +31,16 @@ enum Actions {
     case dapai
     case hule
     case zimo
+    case lingshang
     case lizhi
     case fulou
     case qipai
     case chi
     case peng
+    case angang
+    case kagang
+    case minggang
     case none
-    
 }
 
 // MARK: - Jia

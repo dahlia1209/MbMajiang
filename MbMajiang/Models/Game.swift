@@ -15,7 +15,20 @@ class Game {
     var board: Board
     var status: GameStatus
     var players: [Player]
-    
+    var debugHands: [Int: [String]] = [:] {
+        didSet { applyDebugHands() }
+    }
+
+    private func applyDebugHands() {
+        for (idx, hand) in debugHands {
+            guard board.shan.shoupai.indices.contains(idx),
+                  players.indices.contains(idx) else { continue }
+            let fixed = hand.map { Pai($0) }
+            board.shan.shoupai[idx].bingpai = fixed
+            players[idx].shoupai.bingpai = fixed
+        }
+    }
+
     init(board: Board = Board(), status: GameStatus = GameStatus()) {
         self.board = board
         self.status = status
@@ -28,7 +41,7 @@ class Game {
     
     // MARK: - Game Actions
     func kaiju() {
-        status.action = .kaiju
+        status.phase = .kaiju
         // idを付与してプレイヤーを初期化（Shoupai/HeはShanと同一参照）
         players = (0..<4).map { i in
             i == 0
@@ -40,13 +53,15 @@ class Game {
     }
 
     func qipai() {
-        status.action = .qipai
+        status.phase = .qipai
         status.dapai = nil
         status.zimo = nil
-        status.selectedIdx = nil
+
         status.hulePlayer = nil
         status.zhuangfeng = board.score.round.rawValue.hasPrefix("東") ? .東 : .南
         status.menfengList = board.score.defen.map { $0.0 }
+        status.afterLizhiDiscards = [[],[],[],[]]
+        status.junDiscards = [[],[],[],[]]
         
         board.shan = Shan()
         for (i, player) in players.enumerated() {
@@ -54,79 +69,185 @@ class Game {
             player.he=board.shan.he[i]
             player.status=PlayerStatus()
         }
-        
+        applyDebugHands()
+
         advance()
     }
     
     func hule(player: Int?, kind: HuleResult.Kind) {
-        status.hulePlayer = player
-        let context = buildHuleContext(player: player, kind: kind)
-        computeHuleResult(kind: kind, context: context)
-        status.action = .hule
-        // advance() は呼ばない（ダイアログ表示・ユーザー操作待ち）
+          status.hulePlayer = player
+          let context = buildHuleContext(player: player, kind: kind)
+          computeHuleResult(kind: kind, context: context)
+          status.phase = .hule
+      }
+    
+    func pingju() {
+          computePingjuResult()
+          status.phase = .hule
+      }
+
+    //リーチ後に供託を積む処理
+    private func processLizhiPayments() {
+        for player in players where player.status.pendingLizhiPayment {
+            board.score.defen[player.id].1 -= 1000
+            board.score.lizhibang += 1
+            player.commitLizhi()
+        }
     }
 
     func zimo() {
-        guard !board.shan.shan.isEmpty else {
-            hule(player: nil, kind: .pingju)
-            return
-        }
-        status.action = .zimo
+        guard board.shan.paishu > 0 else {
+                  pingju()
+                  return
+              }
+        status.lastDapai = nil
+        status.phase = .zimo
+        status.junDiscards[status.player] = []
+        infoMessage = nil
+        processLizhiPayments()
+
+        //プレイヤーツモ
         let tile = board.shan.shan.removeLast()
         players[status.player].shoupai.zimo = tile
         status.zimo = tile.label
+        status.paishu = board.shan.paishu
+
+        advance()
+    }
+    
+    func lingshangzimo(){
+        guard !board.shan.wangpai.lingshang.isEmpty else {
+            pingju()
+            return
+        }
+        status.lastDapai = nil
+
+        //カンドラめくり
+        if status.gangdoraFlag == .afterZimo {
+            board.shan.wangpai.revealGangdora()
+            status.gangdoraFlag = .none
+        }
+        
+        status.phase = .zimo
+        let tile = board.shan.wangpai.lingshang.removeLast()
+        players[status.player].shoupai.zimo = tile
+        status.zimo = tile.label
+        status.paishu = board.shan.paishu
         advance()
     }
     
     func dapai() {
-        status.action = .dapai
+        status.phase = .dapai
+        infoMessage = nil
         let player = status.player
         let dapai=players[player].dapai()
         status.dapai = dapai.label
+        status.lastDapai = (player: player, index: players[player].he.qipai.count - 1)
+        
+        //カンドラめくり
+        if status.gangdoraFlag == .afterDapai {
+            board.shan.wangpai.revealGangdora()
+            status.gangdoraFlag = .none
+        }
         
         // リーチ宣言打牌の後処理
         if players[player].status.isSelectingRiichi {
-            players[player].status.isSelectingRiichi = false
-            players[player].status.isLizhi = true
-            players[player].status.isYifa = true
-            // 1000点払い・供託に積む
-            board.score.defen[player].1 -= 1000
-            board.score.lizhibang += 1
+            players[player].pendingLizhi()
         } else if players[player].status.isYifa {
-            // リーチ後の最初の打牌でキャンセル（一発消滅）
-            players[player].status.isYifa = false
+            players[player].cancelYifa()
         }
-        
-        players[player].status.lizhiCandidateIndices=[]
-        players[player].status.isSelectingRiichi = false
+
+        // リーチ後の打牌を記録
+        if players[player].status.isLizhi {
+            status.afterLizhiDiscards[player].append(Hule.normalize(dapai.label))
+        }
+
+        // 回転処理（リーチ打牌 or 副露された後の打牌）
+        if players[player].status.shouldRotateNextDapai {
+            let hasRotated = players[player].he.qipai.contains { $0.rotated }
+            if hasRotated {
+                players[player].clearRotateFlag()
+            } else {
+                players[player].rotateLastDapai()
+            }
+        }
+
         advance()
     }
     
     func peng(player fulouPlayer: Int) {
-        status.action = .fulou
-        guard let label = status.dapai else { return }
+        status.lastDapai = nil
         var dapaiPai = players[status.player].he.qipai.removeLast(); dapaiPai.rotated = true
         let relPos = (fulouPlayer - status.player + 4) % 4
-        var peng = [Pai(label), Pai(label)]
-        peng.insert(dapaiPai, at: relPos-1)
-        players[fulouPlayer].peng(peng)
+        let tajia: Jia
+        switch relPos {
+        case 3: tajia = .xiajia
+        case 2: tajia = .duimian
+        case 1: tajia = .shangjia
+        default: tajia = .zijia
+        }
+        players[fulouPlayer].peng(dapai: dapaiPai, tajia: tajia)
         status.player = fulouPlayer
+        status.phase = .fulou
+        status.junDiscards[fulouPlayer] = []
+        processLizhiPayments()
+        advance()
+    }
+    
+    func minggang(player fulouPlayer: Int) {
+        status.lastDapai = nil
+        var dapaiPai = players[status.player].he.qipai.removeLast(); dapaiPai.rotated = true
+        let relPos = (fulouPlayer - status.player + 4) % 4
+        let tajia: Jia
+        switch relPos {
+        case 3: tajia = .xiajia
+        case 2: tajia = .duimian
+        case 1: tajia = .shangjia
+        default: tajia = .zijia
+        }
+        players[fulouPlayer].minggang(dapai: dapaiPai, tajia: tajia)
+        status.player = fulouPlayer
+        status.gangdoraFlag = .afterDapai
+        status.phase = .lingshang
+        status.junDiscards[fulouPlayer] = []
+        processLizhiPayments()
         advance()
     }
     
     func chi(player fulouPlayer: Int) {
-        status.action = .fulou
+        status.lastDapai = nil
         guard players[fulouPlayer].status.selectedChi.count == 2 else { return }
-        let chiIndices = players[fulouPlayer].status.selectedChi
-        
         var dapaiPai = players[status.player].he.qipai.removeLast(); dapaiPai.rotated = true
         let relPos = (fulouPlayer - status.player + 4) % 4
-        var chi = [players[status.player].shoupai.bingpai[chiIndices[0]], players[status.player].shoupai.bingpai[chiIndices[1]]]
-        chi.insert(dapaiPai, at: relPos-1)
-        players[fulouPlayer].chi(chi)
+        let tajia: Jia
+        switch relPos {
+        case 3: tajia = .xiajia
+        case 2: tajia = .duimian
+        case 1: tajia = .shangjia
+        default: tajia = .zijia
+        }
+        players[fulouPlayer].chi(dapai: dapaiPai, tajia: tajia)
         status.player = fulouPlayer
+        status.phase = .fulou
+        status.junDiscards[fulouPlayer] = []
+        processLizhiPayments()
         advance()
     }
+    
+    func angang() {
+        players[status.player].angang()
+        status.gangdoraFlag = .afterZimo
+        status.phase = .lingshang
+        advance()
+    }
+    
+    func kagang() {
+        players[status.player].kagang()
+        status.gangdoraFlag = .afterZimo
+        status.phase = .lingshang
+        advance()
+    }
+
 
     
     
@@ -136,7 +257,6 @@ class Game {
 
     // 全プレイヤーにcallbackを通知し、人間プレイヤーが準備完了次第ゲーム進行を処理
     private func advance() {
-
         players.forEach { $0.callback(status: self.status) }
 
         if needsHumanInput() {
@@ -152,9 +272,9 @@ class Game {
     // 人間プレイヤーが入力待ちか判定（フェーズも考慮）
     private func needsHumanInput() -> Bool {
         guard let human = humanPlayer else { return false }
-        guard human.status.action == .none else { return false }
+        guard human.status.decision == .none else { return false }
         // 打牌番（ツモ直後または副露直後）
-        let isDapaiTurn = status.player == human.id && (status.action == .zimo || status.action == .fulou)
+        let isDapaiTurn = status.player == human.id && (status.phase == .zimo || status.phase == .fulou)
         // ポン・ロン等のボタンが表示されている
         let hasButtons = !human.status.availableButtonActions.isEmpty
         return isDapaiTurn || hasButtons
@@ -169,7 +289,7 @@ class Game {
 
     // プレイヤーのstatusを読み取り、次のゲームアクションを決定・実行
     private func processPlayerActions() {
-        switch status.action {
+        switch status.phase {
         case .kaiju:
             qipai()
 
@@ -178,49 +298,83 @@ class Game {
             zimo()
 
         case .zimo:
-
+            // 暗槓
+            if let actor = players.first(where: { $0.id == status.player && $0.status.decision == .angang }) {
+                actor.consumeDecision()
+                angang()
+                return
+            }
+            // 加槓
+            if let actor = players.first(where: { $0.id == status.player && $0.status.decision == .kagang }) {
+                actor.consumeDecision()
+                kagang()
+                return
+            }
+            
             // 現在プレイヤー（player 0 または AI）の打牌
-            if let actor = players.first(where: { $0.id == status.player && $0.status.action == .dapai }) {
-                actor.status.action = .none
+            if let actor = players.first(where: { $0.id == status.player && $0.status.decision == .dapai }) {
+                actor.consumeDecision()
                 dapai()
                 return
             }
-            // AIのツモアガリ
-            if let winner = players.first(where: { $0.id == status.player && $0.status.action == .hule }) {
-                winner.status.action = .none
+            
+            // ツモアガリ
+            if let winner = players.first(where: { $0.id == status.player && $0.status.decision == .hule }) {
+                winner.consumeDecision()
                 hule(player: winner.id, kind: .zimo)
                 return
             }
 
         case .dapai:
-            // ロンアガリ（人間・AI共通）
-            if let winner = players.first(where: { $0.status.action == .hule }) {
-                winner.status.action = .none
+            // ロンアガリ
+            if let winner = players.first(where: { $0.status.decision == .hule }) {
+                winner.consumeDecision()
                 hule(player: winner.id, kind: .rong)
                 return
             }
+            
+            // カン宣言
+            if let fulouPlayer = players.first(where: { $0.status.decision == .minggang }) {
+                fulouPlayer.consumeDecision()
+                minggang(player: fulouPlayer.id)
+                return
+            }
+            
             // ポン（副露）宣言
-            if let fulouPlayer = players.first(where: { $0.status.action == .peng }) {
+            if let fulouPlayer = players.first(where: { $0.status.decision == .peng }) {
                 peng(player: fulouPlayer.id)
                 return
             }
+            
             // チー（副露）宣言
-            if let fulouPlayer = players.first(where: { $0.status.action == .chi }) {
-                fulouPlayer.status.action = .none
+            if let fulouPlayer = players.first(where: { $0.status.decision == .chi }) {
+                fulouPlayer.consumeDecision()
                 chi(player: fulouPlayer.id)
                 return
             }
+            
+            // ポスト処理：同巡フリテン用: 他プレイヤーのjunDiscardsに記録
+            if let label = status.dapai {
+                let normalized = Hule.normalize(label)
+                for i in 0..<4 where i != status.player {
+                    status.junDiscards[i].append(normalized)
+                }
+            }
+            
             // 次のツモへ
-            guard let actor = players.first(where: { $0.status.action == .zimo }) else { return }
-            actor.status.action = .none
+            guard let actor = players.first(where: { $0.status.decision == .zimo }) else { return }
+            actor.consumeDecision()
             status.player = actor.id
             zimo()
 
         case .fulou:
             // 現在プレイヤー（player 0 または AI）の副露後打牌
-            guard let actor = players.first(where: { $0.id == status.player && $0.status.action == .dapai }) else { return }
-            actor.status.action = .none
+            guard let actor = players.first(where: { $0.id == status.player && $0.status.decision == .dapai }) else { return }
+            actor.consumeDecision()
             dapai()
+            
+        case .lingshang:
+            lingshangzimo()
 
         default:
             break
@@ -233,9 +387,24 @@ class Game {
         return board.score.defen.firstIndex(where: { $0.0 == .東 })!
     }
     
-    var canDapai: Bool {
+    var isSelectingDapai: Bool {
         guard let human = humanPlayer else { return false }
-        return status.player == human.id && (status.action == .zimo || status.action == .fulou)
+        return status.player == human.id && (status.phase == .zimo || status.phase == .fulou)
+    }
+    
+    var isSelectingChi: Bool {
+        guard let human = humanPlayer else { return false }
+        return status.player != human.id && human.status.isSelectingChi == true
+    }
+    
+    var isSelectingAngang: Bool {
+        guard let human = humanPlayer else { return false }
+        return status.player == human.id && human.status.isSelectingAngang == true
+    }
+    
+    var isSelectingKagang: Bool {
+        guard let human = humanPlayer else { return false }
+        return status.player == human.id && human.status.isSelectingKagang == true
     }
     
 
@@ -254,25 +423,55 @@ class Game {
         switch action {
         case .cancel:
             // チー/ポン/ロン辞退後、自分のツモ番なら .zimo をセットしてから進める
-            if status.action == .dapai && (status.player + 1) % 4 == human.id {
-                human.status.action = .zimo
+            if status.phase == .dapai && (status.player + 1) % 4 == human.id {
+                human.status.decision = .zimo
             }
             resolveHuman()
         case .zimo:
-            human.status.action = .hule
+            human.status.decision = .hule
             resolveHuman()
         case .rong:
-            human.status.action = .hule
-            resolveHuman()
+            if human.isFuriten (
+                afterLizhiDiscards: status.afterLizhiDiscards[human.id],
+                junDiscards: status.junDiscards[human.id]
+            ) {
+                infoMessage = "フリテン"
+            } else {
+                human.status.decision = .hule
+                resolveHuman()
+            }
         case .lizhi:
-            human.status.isSelectingRiichi = true
-            human.status.action = .lizhi
-            // 牌タップ（selectDapai）が resolveHuman() を呼ぶまで保留継続
+            human.startRiichiSelection()
         case .peng:
-            human.status.action = .peng
+            human.status.decision = .peng
+            //TODO: 手牌３枚以上の牌選択
+            resolveHuman()
+        case .minggang:
+            human.status.decision = .minggang
             resolveHuman()
         case .chi:
-            human.status.isSelectingChi = true
+            human.startChiSelection()
+        case .angang:
+            if human.shoupai.gangzi.count == 1 {
+                human.prepareAngang(label: human.shoupai.gangzi[0])
+                resolveHuman()
+            } else if human.shoupai.gangzi.count > 1 {
+                human.startAngangSelection()
+            } else {
+                human.status.decision = .zimo
+                resolveHuman()
+            }
+        case .kagang:
+            if human.shoupai.kagangzi.count == 1 {
+                human.prepareKagang(label: human.shoupai.kagangzi[0])
+                resolveHuman()
+            } else if human.shoupai.kagangzi.count > 1 {
+                human.startKagangSelection()
+            } else {
+                human.status.decision = .zimo
+                resolveHuman()
+            }
+            
         default:
             resolveHuman()
         }
@@ -280,7 +479,8 @@ class Game {
     
     // MARK: - Hule Result
     var huleResult: HuleResult? = nil
-    var summaryResult: SummaryResult? = nil
+    var gameResult: SummaryResult? = nil
+    var infoMessage: String? = nil
     var roundHistory: [RoundRecord] = []
 
     // アガリ局面情報を生成
@@ -290,9 +490,9 @@ class Game {
         let menfeng: Feng = board.score.defen[idx].0
         let winTileLabel: String = {
             switch kind {
-            case .zimo:   return Hule.normalize(status.zimo ?? "")
-            case .rong:   return Hule.normalize(status.dapai ?? "")
-            case .pingju: return ""
+            case .zimo: return Hule.normalize(status.zimo ?? "")
+            case .rong: return Hule.normalize(status.dapai ?? "")
+            default:    return ""
             }
         }()
         return HuleContext(
@@ -313,7 +513,7 @@ class Game {
         )
     }
 
-    // 和了・流局時の結果を生成して huleResult にセット
+    // アガリの結果を生成して huleResult にセット
     private func computeHuleResult(kind: HuleResult.Kind, context: HuleContext) {
         let idx = status.hulePlayer ?? 0
         let player = players[idx]
@@ -322,7 +522,7 @@ class Game {
             switch kind {
             case .zimo:   return player.shoupai.zimo
             case .rong:   return status.dapai.map { Pai($0) }
-            case .pingju: return nil
+            default: return nil
             }
         }()
 
@@ -330,11 +530,11 @@ class Game {
             switch kind {
             case .zimo:   return player.shoupai.allLabels
             case .rong:   return player.shoupai.visibleLabels + [context.winTile]
-            case .pingju: return []
+            default: return []
             }
         }()
 
-//        let fulouGroups = player.shoupai.fulou.map { $0.map { $0.label } }
+
         let baopai   = board.shan.wangpai.baopai.map { $0.label }
         let libaopai = context.lizhi
             ? Array(board.shan.wangpai.libaopai.prefix(baopai.count)).map { $0.label }
@@ -366,7 +566,7 @@ class Game {
         let basePoints = defenResult.defen - board.score.honba * 300 - board.score.lizhibang * 1000
         huleResult = HuleResult(
             kind: kind,
-            hulePlayer: kind == .pingju ? nil : idx,
+            hulePlayer: idx,
             bingpai: player.shoupai.bingpai.filter { !$0.hidden },
             fulou: player.shoupai.fulou,
             winTile: winTile,
@@ -384,6 +584,36 @@ class Game {
             lizhibang: board.score.lizhibang
         )
     }
+    
+    //流局時の点数計算
+    private func computePingjuResult() {
+          // テンパイ判定
+          let tenpaiIndices = players.indices.filter { i in
+              Hule.xiangting(players[i].shoupai.visibleLabels.map { Hule.normalize($0) }) == 0
+          }
+          // テンパイ料計算 (合計 3000 点)
+          let n = tenpaiIndices.count
+          var scoreChanges = [Int](repeating: 0, count: 4)
+          if n > 0 && n < 4 {
+              let gain = 3000 / n
+              let loss = 3000 / (4 - n)
+              for i in 0..<4 { scoreChanges[i] = tenpaiIndices.contains(i) ? gain : -loss }
+          }
+          let afterScores = board.score.defen.enumerated()
+              .map { (i, kv) in (feng: kv.0, points: kv.1 + scoreChanges[i]) }
+                      
+          huleResult = HuleResult(
+              kind: .pingju,
+              hulePlayer: nil,
+              bingpai: [], fulou: [], winTile: nil,
+              baopai: board.shan.wangpai.baopai,
+              tenpaiPlayers: tenpaiIndices,
+              scoreChanges: scoreChanges,
+              afterScores: afterScores,
+              honba: board.score.honba,
+              lizhibang: board.score.lizhibang
+          )
+      }
 
     // 結果ダイアログを閉じて次の局へ進む
     func dismissHuleResult() {
@@ -411,15 +641,17 @@ class Game {
             lizhiPlayers: []
         ))
 
-        // 終局チェック（南四局終了後）
-        if board.score.round == .終局 {
-            summaryResult = buildSummaryResult()
-            return
-        }
-        
         // 連荘 / 次局の判定
-        if result.kind == .pingju || result.hulePlayer == dealerIdx {
-            // 親の和了 or 流局 → 連荘（本場+1）
+        let dealerTenpai = result.tenpaiPlayers.contains(dealerIdx)
+        if result.kind == .pingju && dealerTenpai {
+            // 流局・親テンパイ → 連荘（本場+1）
+            board.score.honba += 1
+        } else if result.kind == .pingju && !dealerTenpai {
+            // 流局・親ノーテン → 次局（風を回す・本場+1）
+            board.score.honba += 1
+            board.score.nextRound()
+        } else if result.hulePlayer == dealerIdx {
+            // 親の和了 → 連荘（本場+1）
             board.score.honba += 1
         } else {
             // 子の和了 → 次局（風を回す・本場リセット）
@@ -428,12 +660,18 @@ class Game {
         }
 
         huleResult = nil
-        
+
+        // 終局チェック（nextRound後）
+        if board.score.round == .終局 {
+            gameResult = buildGameResult()
+            return
+        }
+
         //局開始
         qipai()
     }
 
-    private func buildSummaryResult() -> SummaryResult {
+    private func buildGameResult() -> SummaryResult {
         let finalScores = board.score.defen.map { (feng: $0.0, points: $0.1) }
 
         // 最終順位に基づいてポイント計算（ウマ 20/10/-10/-20、オカ 20）
@@ -472,15 +710,23 @@ struct RoundRecord {
 
 
 // MARK: - GameStatus
+enum GangdoraRevealTiming {
+    case none
+    case afterZimo   // 嶺上牌ツモ後（暗槓）
+    case afterDapai  // 打牌後（明槓）
+}
+
 struct GameStatus {
-    var action: Actions = .kaiju
+    var phase: Actions = .kaiju
     var player: Int = 4
     var dapai: String? = nil
-    var selectedIdx: Int? = nil
     var zimo: String? = nil
     var hulePlayer: Int? = nil
     var zhuangfeng: Feng = .東
+    var gangdoraFlag: GangdoraRevealTiming = .none
     var menfengList: [Feng] = [.東, .南, .西, .北]
+    var paishu: Int = 0
+    var lastDapai: (player: Int, index: Int)? = nil
+    var afterLizhiDiscards: [[String]] = [[],[],[],[]]
+    var junDiscards: [[String]] = [[],[],[],[]]
 }
-
-

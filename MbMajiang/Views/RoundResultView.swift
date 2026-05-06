@@ -1,5 +1,5 @@
 //
-//  HuleDialogView.swift
+//  RoundResultView.swift
 //  MbMajiang
 //
 //  Created by Ryu Nakamura on 2026/04/12.
@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-struct HuleDialogView: View {
+struct RoundResultView: View {
     let result: HuleResult
     let onDismiss: () -> Void
 
@@ -50,16 +50,31 @@ struct HuleDialogView: View {
                 }
                 .fixedSize()
                 .padding(16)
-                .background(.black)
+                .background(Color.black.opacity(0.5))
                 .cornerRadius(12)
                 .overlay(
                     RoundedRectangle(cornerRadius: 12)
                         .stroke(Color.white.opacity(0.15), lineWidth: 1)
                 )
+
+                Button {
+                    onDismiss()
+                } label: {
+                    Text("次局へ")
+                        .font(.system(size: 15, weight: .bold))
+                        .foregroundColor(.yellow)
+                        .frame(width: 120, height: 36)
+                        .background(Color.black.opacity(0.5))
+                        .cornerRadius(8)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8)
+                                .stroke(Color.yellow.opacity(0.7), lineWidth: 1)
+                        )
+                }
+                .padding(.top, 16)
             }
             .padding(.horizontal, 20)
         }
-        .onTapGesture { onDismiss() }  // どこをタップしても閉じる
     }
 
     // MARK: - ドラ表示
@@ -125,14 +140,25 @@ struct HuleDialogView: View {
                 Grid(horizontalSpacing: 16, verticalSpacing: 4) {
                     ForEach(result.hupai.indices, id: \.self) { i in
                         GridRow {
-                            Text(result.hupai[i].name)
-                                .font(.system(size: 14))
-                                .foregroundColor(.white)
-                                .gridColumnAlignment(.leading)
-                            Text("\(result.hupai[i].fan)翻")
-                                .font(.system(size: 14))
-                                .foregroundColor(.yellow)
-                                .gridColumnAlignment(.trailing)
+                            if result.hupai[i].fan < 100 {
+                                Text(result.hupai[i].name)
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.white)
+                                    .gridColumnAlignment(.leading)
+                            } else if result.hupai[i].fan >= 100{
+                                Text(result.hupai[i].name)
+                                    .font(.system(size: 16, weight: .bold ))
+                                          .foregroundColor(.yellow )
+                                          .shadow(color: .orange.opacity(0.7) , radius: 4)
+                                          .gridColumnAlignment(.leading)
+                            }
+                            if result.hupai[i].fan < 100 {
+                                Text("\(result.hupai[i].fan)翻")
+                                    .font(.system(size: 14))
+                                    .foregroundColor(.yellow)
+                                    .gridColumnAlignment(.trailing)
+                            }
+                            
                         }
                     }
                 }
@@ -147,8 +173,25 @@ struct HuleDialogView: View {
 
     private var scoreLabel: String {
         var parts: [String] = []
-        if result.fu > 0       { parts.append("\(result.fu)符") }
-        if result.totalFan > 0 { parts.append("\(result.totalFan)翻") }
+        if result.fu > 0 &&  result.totalFan <= 4     { parts.append("\(result.fu)符") }
+        if result.totalFan > 0 && result.totalFan <= 4 { parts.append("\(result.totalFan)翻") }
+        else if result.totalFan == 5 { parts.append("満貫") }
+        else if result.totalFan >= 6 && result.totalFan <= 7 { parts.append("跳満") }
+        else if result.totalFan >= 8 && result.totalFan <= 10 { parts.append("倍満") }
+        else if result.totalFan >= 11 && result.totalFan <= 12 { parts.append("三倍満") }
+        else if result.totalFan >= 13 && result.totalFan <= 99 { parts.append("数え役満") }
+        else if result.totalFan >= 100 {
+            let weight = result.totalFan / 100
+            let label:String
+            switch weight{
+            case 1 : label = "役満"
+            case 2 : label = "ダブル役満"
+            case 3 : label = "三倍役満"
+            case 4 : label = "四倍役満"
+            default: label = "役満"
+            }
+            parts.append(label) }
+        
         if result.points > 0   { parts.append("\(result.points)点") }
         return parts.isEmpty ? "" : parts.joined(separator: " ")
     }
@@ -252,7 +295,7 @@ struct HuleDialogView: View {
         fu: 30, totalFan: 3, points: 5200,
         scoreChanges: [-5200, 0, 5200, 0], afterScores: afterScores,
         honba: 1, lizhibang: 0)
-    HuleDialogView(result: result) {}
+    RoundResultView(result: result) {}
 }
 
 #Preview("副露あり", traits: .landscapeLeft) {
@@ -268,7 +311,7 @@ struct HuleDialogView: View {
         fu: 30, totalFan: 2, points: 3900,
         scoreChanges: [3900, 0, -3900, 0], afterScores: afterScores,
         honba: 0, lizhibang: 0)
-    return HuleDialogView(result: result) {}
+    return RoundResultView(result: result) {}
 }
 
 #Preview("流局", traits: .landscapeLeft) {
@@ -279,5 +322,5 @@ struct HuleDialogView: View {
         baopai: [Pai("z7")],
         scoreChanges: [0, 0, 0, 0], afterScores: afterScores,
         honba: 0, lizhibang: 0)
-    HuleDialogView(result: result) {}
+    RoundResultView(result: result) {}
 }

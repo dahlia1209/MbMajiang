@@ -15,6 +15,9 @@ enum PlayerButtonAction: CaseIterable, Hashable {
     case chi     // チー
     case peng    // ポン
     case gang    // カン
+    case angang    // 暗カン
+    case kagang    // 加カン
+    case minggang    // 明カン
     case lizhi   // リーチ
     case rong    // ロン
     case zimo    // ツモ
@@ -27,6 +30,9 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         case .chi:    return "チー"
         case .peng:   return "ポン"
         case .gang:   return "カン"
+        case .angang:   return "カン"
+        case .kagang:   return "加カン"
+        case .minggang:   return "カン"
         case .lizhi:  return "リーチ"
         case .rong:   return "ロン"
         case .zimo:   return "ツモ"
@@ -42,6 +48,9 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         case .chi:            return Color(red: 0.2, green: 0.45, blue: 0.2)
         case .peng:           return Color(red: 0.2, green: 0.45, blue: 0.2)
         case .gang:           return Color(red: 0.2, green: 0.45, blue: 0.2)
+        case .angang:           return Color(red: 0.2, green: 0.45, blue: 0.2)
+        case .kagang:           return Color(red: 0.2, green: 0.45, blue: 0.2)
+        case .minggang:           return Color(red: 0.2, green: 0.45, blue: 0.2)
         case .lizhi:          return Color(red: 0.6, green: 0.45, blue: 0.1)
         case .rong:           return Color(red: 0.55, green: 0.15, blue: 0.15)
         case .zimo:           return Color(red: 0.55, green: 0.15, blue: 0.15)
@@ -58,7 +67,7 @@ struct PlayerButtonView: View {
 
     // HTMLの並び順に固定
     private let order: [PlayerButtonAction] = [
-        .cancel, .noten, .chi, .peng, .gang, .lizhi, .rong, .zimo, .pingju
+        .cancel, .noten, .chi, .peng, .gang, .angang, .kagang, .minggang, .lizhi, .rong, .zimo, .pingju
     ]
 
     var body: some View {
