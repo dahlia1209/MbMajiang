@@ -15,15 +15,23 @@ xcodebuild -project MbMajiang.xcodeproj -scheme MbMajiang -destination 'platform
 
 ### Model Layer (`Models/`)
 
-**`GameState.swift`** — ~766 lines, the core of the app. Contains everything except hand evaluation.
+**`Game.swift`** — ~732 lines, the core of the app. Contains everything except hand evaluation.
 
 Key types and their roles:
-- **`Game`** (`@Observable`) — root orchestrator; owns `Board`, `[Player]`, and the state machine
-- **`Board`** — container for `Shan` (wall + all hands/discards) and `Score`
-- **`Shan`** — the shuffled tile set; holds `shoupai: [Shoupai]`, `he: [He]`, `wangpai: Wangpai`
-- **`Shoupai`** (`@Observable`) — one player's hand: `bingpai: [Pai]` (arranged tiles) + `zimo: Pai?` (drawn tile)
-- **`Player`** / **`AIPlayer`** — player state + action callbacks; `AIPlayer.selectDapai()` uses shanten
-- **`GameStatus`** / **`PlayerStatus`** — snapshot of the current game action and per-player queues
+- **`Game`** (`@Observable`) — root orchestrator; owns `Board`, `[Player]`, and the state machine. Also holds `huleResult: HuleResult?`, `gameResult: SummaryResult?`, `roundHistory: [RoundRecord]`
+- **`GameStatus`** / **`RoundRecord`** / **`GangdoraRevealTiming`** — also defined in `Game.swift`
+
+**`Board.swift`** — `Board` struct: container for `Shan` and `Score`.
+
+**`Score.swift`** — `Score` struct: holds `round: Rounds`, `honba`, `lizhibang`, `defen: [(Feng, Int)]`.
+
+**`Common.swift`** — shared enums: `Feng` (Int raw value 1–4: 東南西北), `Actions`, `Jia`.
+
+**`Player.swift`** — `Player` / `AIPlayer` classes + `PlayerStatus` struct. `AIPlayer.selectDapai()` uses shanten.
+
+**`Result.swift`** — `HuleResult`, `SummaryResult` structs (result data passed to result views).
+
+**`Shan.swift`** — the shuffled tile set; holds `shoupai: [Shoupai]`, `he: [He]`, `wangpai: Wangpai`.
 
 **`Hule.swift`** — hand evaluation: win detection, shanten, yaku.
 
@@ -31,7 +39,7 @@ Key functions:
 - `Hule.isHule(tiles: [String]) -> Bool` — checks 七対子, 国士, standard 4-melds+1-pair forms
 - `Hule.xiangting(tiles: [String]) -> Int` — shanten number used by AI to pick discards
 - `Hule.winningDecompositions(tiles: [String]) -> [BlockCounts]` — enumerate all valid meld decompositions
-- `Hule.getYaku(tiles: [String], context: HuleContext) -> [Yaku]` — role/yaku recognition (partially implemented)
+- `Hule.getYaku(tiles: [String], context: HuleContext) -> (yaku: [Yaku], fu: Int)` — yaku recognition (partially implemented)
 
 **`PaiTable.swift`** — lookup tables for tile relationships (suits, adjacency, etc.)
 
@@ -48,7 +56,7 @@ Human player (index 0) pauses the loop by leaving `status.action` empty until a 
 
 - **Tile discard:** Tapping a tile in `BoardView` → `game.dapai(index)`
 - **Action buttons:** `PlayerButtonView` shows `Set<PlayerButtonAction>` from `game.playerActions`; taps route to `game.handlePlayerAction(_:)`
-- **Win/draw:** `game.hule(player:kind:)` builds `HuleResult`, sets `game.huleResult` → `HuleDialogView` overlay appears reactively; dismissed by `game.dismissHuleResult()`
+- **Win/draw:** `game.hule(player:kind:)` builds `HuleResult`, sets `game.huleResult` → `RoundResultView` overlay appears reactively; dismissed by `game.dismissHuleResult()`. `GameResultView` appears when `game.gameResult` is set (終局時).
 
 ### Data Binding
 
@@ -60,9 +68,9 @@ Tile labels use compact string codes: `"m1"`–`"m9"` (萬子), `"p1"`–`"p9"` 
 
 ### Feng / Wind
 
-`Feng` enum (in `Hule.swift`, `Int` raw value 1–4: 東南西北) is used for both 場風 (`zhuangfeng`) and 自風 (`menfeng`). `Score.defen` is `[(Feng, Int)]` — wind label + points for each seat.
+`Feng` enum (in `Common.swift`, `Int` raw value 1–4: 東南西北) is used for both 場風 (`zhuangfeng`) and 自風 (`menfeng`). `Score.defen` is `[(Feng, Int)]` — wind label + points for each seat.
 
 ### Current Implementation Status
 
-- **Implemented:** draw/discard loop, win detection, shanten-based AI, yaku: 対対和, 三暗刻, 断么九, status-based yaku (立直, 天和, etc.)
-- **Stub/TODO:** 平和, 一盃口, 三色同順, 一気通貫, 混一色, 清一色, actual 符・点数 calculation (scoreChanges is zeros), 副露 (chi/peng/kan) mechanics
+- **Implemented:** draw/discard loop, win detection, shanten-based AI, 副露 (chi/peng/kan/ankan) mechanics, yaku: 対対和, 三暗刻, 断么九, status-based yaku (立直, 天和, etc.)
+- **Stub/TODO:** 平和, 一盃口, 三色同順, 一気通貫, 混一色, 清一色, actual 符・点数 calculation (scoreChanges is zeros)

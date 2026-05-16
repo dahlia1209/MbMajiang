@@ -14,64 +14,73 @@ struct GameResultView: View {
     private let playerNames = ["私", "下家", "対面", "上家"]
 
     // カラム幅
-    private let colJushu:  CGFloat = 60
-    private let colHonba:  CGFloat = 50
+    private let colJushu:  CGFloat = 50
+    private let colHonba:  CGFloat = 44
     private let colKind:   CGFloat = 72
-    private let colPlayer: CGFloat = 90
+    private let colPlayer: CGFloat = 80
     private let colGap:    CGFloat = 1
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.75).ignoresSafeArea()
 
-            VStack(spacing: 16) {
-                VStack(spacing: 0) {
-                    headerRow
-                    Divider().background(Color.white.opacity(0.25))
+            // ダイアログ（中央）
+            VStack(spacing: 0) {
+                headerRow
+                Divider().background(Color.white.opacity(0.25))
 
-                    ScrollView(.vertical, showsIndicators: false) {
-                        VStack(spacing: 0) {
-                            ForEach(result.roundHistory.indices, id: \.self) { i in
-                                roundRow(result.roundHistory[i])
-                                    .background(i % 2 == 0
-                                        ? Color.clear
-                                        : Color.white.opacity(0.03))
-                            }
+                ScrollView(.vertical, showsIndicators: false) {
+                    VStack(spacing: 0) {
+                        ForEach(result.roundHistory.indices, id: \.self) { i in
+                            roundRow(result.roundHistory[i])
+                                .background(i % 2 == 0
+                                    ? Color.clear
+                                    : Color.white.opacity(0.03))
                         }
                     }
-                    .frame(maxHeight: CGFloat(min(result.roundHistory.count, 8)) * 28)
-
-                    Divider().background(Color.white.opacity(0.25))
-                    defenRow
-                    Divider().background(Color.white.opacity(0.1))
-                    pointRow
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(16)
-                .background(Color(red: 0.10, green: 0.10, blue: 0.16))
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                )
+                .frame(maxHeight: CGFloat(min(result.roundHistory.count, 8)) * 28)
 
-                Button {
-                    onDismiss()
-                } label: {
-                    Text("対局終了")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.yellow)
-                        .frame(width: 120, height: 36)
-                        .background(Color.black.opacity(0.8))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.yellow.opacity(0.7), lineWidth: 1)
-                        )
+                Divider().background(Color.white.opacity(0.25))
+                defenRow
+                Divider().background(Color.white.opacity(0.1))
+                pointRow
+            }
+            .padding(16)
+            .background(Color(red: 0.10, green: 0.10, blue: 0.16))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
+            )
+            .frame(maxWidth: 460)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.leading, 40)
+            .padding(.vertical, 24)
+
+            // 対局終了ボタン（右下）
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Text("対局終了")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.yellow)
+                            .frame(width: 160, height: 52)
+                            .background(Color.black.opacity(0.8))
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.yellow.opacity(0.7), lineWidth: 1.5)
+                            )
+                    }
+                    .padding(.trailing, 24)
+                    .padding(.bottom, 24)
                 }
             }
-            .padding(.horizontal, 96)
-            .padding(.vertical, 24)
         }
     }
 
@@ -167,15 +176,9 @@ struct GameResultView: View {
 
     // MARK: - Helpers
     private func kindLabel(_ record: RoundRecord) -> String {
-        switch record.kind {
-        case .pingju: return "流局"
-        case .zimo:
-            let name = record.hulePlayer.map { playerNames[$0] } ?? ""
-            return "\(name) ツモ"
-        case .rong:
-            let name = record.hulePlayer.map { playerNames[$0] } ?? ""
-            return "\(name) ロン"
-        }
+        if let label = record.kind.pingjuLabel { return label }
+        let name = record.hulePlayer.map { playerNames[$0] } ?? ""
+        return record.kind == .zimo ? "\(name) ツモ" : "\(name) ロン"
     }
 
     private func diffText(_ diff: Int) -> String {

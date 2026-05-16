@@ -10,12 +10,28 @@
 		C49201C52F93B1E1001F8F64 /* CLAUDE.md in Resources */ = {isa = PBXBuildFile; fileRef = C49201C42F93B1E1001F8F64 /* CLAUDE.md */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		C42363D82FAEE73B00F14564 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C44D2DFD2F794428005E422C /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C44D2E042F794428005E422C;
+			remoteInfo = MbMajiang;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		C42363D42FAEE73B00F14564 /* MbMajiangTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MbMajiangTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C44D2E052F794428005E422C /* MbMajiang.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MbMajiang.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C49201C42F93B1E1001F8F64 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
+		C42363D52FAEE73B00F14564 /* MbMajiangTests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = MbMajiangTests;
+			sourceTree = "<group>";
+		};
 		C44D2E072F794428005E422C /* MbMajiang */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = MbMajiang;
@@ -24,6 +40,13 @@
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		C42363D12FAEE73B00F14564 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C44D2E022F794428005E422C /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -39,6 +62,7 @@
 			children = (
 				C49201C42F93B1E1001F8F64 /* CLAUDE.md */,
 				C44D2E072F794428005E422C /* MbMajiang */,
+				C42363D52FAEE73B00F14564 /* MbMajiangTests */,
 				C44D2E062F794428005E422C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -47,6 +71,7 @@
 			isa = PBXGroup;
 			children = (
 				C44D2E052F794428005E422C /* MbMajiang.app */,
+				C42363D42FAEE73B00F14564 /* MbMajiangTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -54,6 +79,29 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		C42363D32FAEE73B00F14564 /* MbMajiangTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C42363DC2FAEE73B00F14564 /* Build configuration list for PBXNativeTarget "MbMajiangTests" */;
+			buildPhases = (
+				C42363D02FAEE73B00F14564 /* Sources */,
+				C42363D12FAEE73B00F14564 /* Frameworks */,
+				C42363D22FAEE73B00F14564 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				C42363D92FAEE73B00F14564 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				C42363D52FAEE73B00F14564 /* MbMajiangTests */,
+			);
+			name = MbMajiangTests;
+			packageProductDependencies = (
+			);
+			productName = MbMajiangTests;
+			productReference = C42363D42FAEE73B00F14564 /* MbMajiangTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		C44D2E042F794428005E422C /* MbMajiang */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = C44D2E102F794429005E422C /* Build configuration list for PBXNativeTarget "MbMajiang" */;
@@ -86,6 +134,10 @@
 				LastSwiftUpdateCheck = 2640;
 				LastUpgradeCheck = 2640;
 				TargetAttributes = {
+					C42363D32FAEE73B00F14564 = {
+						CreatedOnToolsVersion = 26.4.1;
+						TestTargetID = C44D2E042F794428005E422C;
+					};
 					C44D2E042F794428005E422C = {
 						CreatedOnToolsVersion = 26.4;
 					};
@@ -106,11 +158,19 @@
 			projectRoot = "";
 			targets = (
 				C44D2E042F794428005E422C /* MbMajiang */,
+				C42363D32FAEE73B00F14564 /* MbMajiangTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		C42363D22FAEE73B00F14564 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C44D2E032F794428005E422C /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -122,6 +182,13 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		C42363D02FAEE73B00F14564 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		C44D2E012F794428005E422C /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -131,7 +198,55 @@
 		};
 /* End PBXSourcesBuildPhase section */
 
+/* Begin PBXTargetDependency section */
+		C42363D92FAEE73B00F14564 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C44D2E042F794428005E422C /* MbMajiang */;
+			targetProxy = C42363D82FAEE73B00F14564 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
 /* Begin XCBuildConfiguration section */
+		C42363DA2FAEE73B00F14564 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ryu-nakamura.MbMajiangTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MbMajiang.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MbMajiang";
+			};
+			name = Debug;
+		};
+		C42363DB2FAEE73B00F14564 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "ryu-nakamura.MbMajiangTests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				STRING_CATALOG_GENERATE_SYMBOLS = NO;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/MbMajiang.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/MbMajiang";
+			};
+			name = Release;
+		};
 		C44D2E0E2F794429005E422C /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -318,6 +433,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		C42363DC2FAEE73B00F14564 /* Build configuration list for PBXNativeTarget "MbMajiangTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C42363DA2FAEE73B00F14564 /* Debug */,
+				C42363DB2FAEE73B00F14564 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		C44D2E002F794428005E422C /* Build configuration list for PBXProject "MbMajiang" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

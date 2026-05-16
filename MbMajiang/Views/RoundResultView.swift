@@ -11,69 +11,70 @@ struct RoundResultView: View {
     let result: HuleResult
     let onDismiss: () -> Void
 
+
     var body: some View {
         ZStack {
             // 半透明オーバーレイ
             Color.black.opacity(0.65)
                 .ignoresSafeArea()
 
-            VStack(spacing: 0) {
-                VStack(spacing: 10) {
+            // ダイアログ（中央）
+            VStack(spacing: 10) {
+                doraRow
 
-                    // ドラ表示
-                    doraRow
+                Divider().background(Color.white.opacity(0.2))
 
+                if !result.kind.isPingju {
+                    handRow
                     Divider().background(Color.white.opacity(0.2))
-
-                    // 手牌（流局時は非表示）
-                    if result.kind != .pingju {
-                        handRow
-                        Divider().background(Color.white.opacity(0.2))
-                    }
-
-                    // 役表 or 流局テキスト
-                    if result.kind == .pingju {
-                        pingjuSection
-                    } else {
-                        hupaiSection
-                    }
-
-                    Divider().background(Color.white.opacity(0.2))
-
-                    // 場況（本場・供託）
-                    jicunRow
-
-                    Divider().background(Color.white.opacity(0.2))
-
-                    // 得点変動
-                    fenpeiSection
                 }
-                .fixedSize()
-                .padding(16)
-                .background(Color.black.opacity(0.5))
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.white.opacity(0.15), lineWidth: 1)
-                )
 
-                Button {
-                    onDismiss()
-                } label: {
-                    Text("次局へ")
-                        .font(.system(size: 15, weight: .bold))
-                        .foregroundColor(.yellow)
-                        .frame(width: 120, height: 36)
-                        .background(Color.black.opacity(0.5))
-                        .cornerRadius(8)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.yellow.opacity(0.7), lineWidth: 1)
-                        )
+                if result.kind.isPingju {
+                    pingjuSection(subtitle: result.kind.pingjuSubtitle)
+                } else {
+                    hupaiSection
                 }
-                .padding(.top, 16)
+
+                Divider().background(Color.white.opacity(0.2))
+
+                jicunRow
+
+                Divider().background(Color.white.opacity(0.2))
+
+                fenpeiSection
             }
-            .padding(.horizontal, 20)
+            .fixedSize()
+            .padding(16)
+            .background(Color.black.opacity(0.5))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
+            )
+
+            // 次局へボタン（右下）
+            VStack {
+                Spacer()
+                HStack {
+                    Spacer()
+                    Button {
+                        onDismiss()
+                    } label: {
+                        Text("次局へ")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(.yellow)
+                            .frame(width: 160, height: 52)
+                            .background(Color.black.opacity(0.5))
+                            .cornerRadius(10)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10)
+                                    .stroke(Color.yellow.opacity(0.7), lineWidth: 1.5)
+                            )
+                    }
+                    .padding(.trailing, 24)
+                    .padding(.bottom, 24)
+                }
+            }
         }
     }
 
@@ -95,7 +96,7 @@ struct RoundResultView: View {
                     PaiView(pais[i].label)
                 }
                 ForEach(pais.count..<5, id: \.self) { _ in
-                    PaiView("_", false)
+                    PaiView("_", reveal: false)
                 }
             }
         }
@@ -136,38 +137,47 @@ struct RoundResultView: View {
                 Text("（役計算未実装）")
                     .font(.system(size: 13))
                     .foregroundColor(.gray.opacity(0.6))
-            } else {
-                Grid(horizontalSpacing: 16, verticalSpacing: 4) {
-                    ForEach(result.hupai.indices, id: \.self) { i in
-                        GridRow {
-                            if result.hupai[i].fan < 100 {
-                                Text(result.hupai[i].name)
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.white)
-                                    .gridColumnAlignment(.leading)
-                            } else if result.hupai[i].fan >= 100{
-                                Text(result.hupai[i].name)
-                                    .font(.system(size: 16, weight: .bold ))
-                                          .foregroundColor(.yellow )
-                                          .shadow(color: .orange.opacity(0.7) , radius: 4)
-                                          .gridColumnAlignment(.leading)
-                            }
-                            if result.hupai[i].fan < 100 {
-                                Text("\(result.hupai[i].fan)翻")
-                                    .font(.system(size: 14))
-                                    .foregroundColor(.yellow)
-                                    .gridColumnAlignment(.trailing)
-                            }
-                            
-                        }
-                    }
+            } else if result.hupai.count >= 5 {
+                // 5役以上: 1列4つで2列に分割
+                HStack(alignment: .top, spacing: 24) {
+                    hupaiGrid(Array(result.hupai.prefix(4)))
+                    hupaiGrid(Array(result.hupai.dropFirst(4).prefix(4)))
                 }
+            } else {
+                hupaiGrid(result.hupai)
             }
 
             // 得点行
             Text(scoreLabel)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)
+        }
+    }
+
+    private func hupaiGrid(_ hupai: [(name: String, fan: Int)]) -> some View {
+        Grid(horizontalSpacing: 16, verticalSpacing: 4) {
+            ForEach(hupai.indices, id: \.self) { i in
+                GridRow {
+                    if hupai[i].fan >= 100 {
+                        Text(hupai[i].name)
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundColor(.yellow)
+                            .shadow(color: .orange.opacity(0.7), radius: 4)
+                            .gridColumnAlignment(.leading)
+                    } else {
+                        Text(hupai[i].name)
+                            .font(.system(size: 14))
+                            .foregroundColor(.white)
+                            .gridColumnAlignment(.leading)
+                    }
+                    if hupai[i].fan > 0 && hupai[i].fan < 100 {
+                        Text("\(hupai[i].fan)翻")
+                            .font(.system(size: 14))
+                            .foregroundColor(.yellow)
+                            .gridColumnAlignment(.trailing)
+                    }
+                }
+            }
         }
     }
 
@@ -197,11 +207,18 @@ struct RoundResultView: View {
     }
 
     // MARK: - 流局
-    private var pingjuSection: some View {
-        Text("流　局")
-            .font(.system(size: 22, weight: .bold))
-            .foregroundColor(.white)
-            .padding(.vertical, 6)
+    private func pingjuSection(subtitle: String?) -> some View {
+        VStack(spacing: 4) {
+            Text("流　局")
+                .font(.system(size: 22, weight: .bold))
+                .foregroundColor(.white)
+            if let subtitle {
+                Text(subtitle)
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(.white.opacity(0.7))
+            }
+        }
+        .padding(.vertical, 6)
     }
 
     // MARK: - 場況（本場・供託）
@@ -318,6 +335,28 @@ struct RoundResultView: View {
     let afterScores: [(feng: Feng, points: Int)] = [(.東, 25000), (.南, 25000), (.西, 25000), (.北, 25000)]
     let result = HuleResult(
         kind: .pingju, hulePlayer: nil,
+        bingpai: [], fulou: [[Pai]](), winTile: nil,
+        baopai: [Pai("z7")],
+        scoreChanges: [0, 0, 0, 0], afterScores: afterScores,
+        honba: 0, lizhibang: 0)
+    RoundResultView(result: result) {}
+}
+
+#Preview("四風連打", traits: .landscapeLeft) {
+    let afterScores: [(feng: Feng, points: Int)] = [(.東, 25000), (.南, 25000), (.西, 25000), (.北, 25000)]
+    let result = HuleResult(
+        kind: .suufon, hulePlayer: nil,
+        bingpai: [], fulou: [[Pai]](), winTile: nil,
+        baopai: [Pai("z7")],
+        scoreChanges: [0, 0, 0, 0], afterScores: afterScores,
+        honba: 0, lizhibang: 0)
+    RoundResultView(result: result) {}
+}
+
+#Preview("九種九牌", traits: .landscapeLeft) {
+    let afterScores: [(feng: Feng, points: Int)] = [(.東, 25000), (.南, 25000), (.西, 25000), (.北, 25000)]
+    let result = HuleResult(
+        kind: .kyuushu, hulePlayer: nil,
         bingpai: [], fulou: [[Pai]](), winTile: nil,
         baopai: [Pai("z7")],
         scoreChanges: [0, 0, 0, 0], afterScores: afterScores,

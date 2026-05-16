@@ -18,10 +18,11 @@ enum PlayerButtonAction: CaseIterable, Hashable {
     case angang    // 暗カン
     case kagang    // 加カン
     case minggang    // 明カン
-    case lizhi   // リーチ
-    case rong    // ロン
-    case zimo    // ツモ
-    case pingju  // 流局
+    case lizhi    // リーチ
+    case rong     // ロン
+    case zimo     // ツモ
+    case pingju   // 流局
+    case kyuushu  // 九種九牌
 
     nonisolated var label: String {
         switch self {
@@ -35,8 +36,9 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         case .minggang:   return "カン"
         case .lizhi:  return "リーチ"
         case .rong:   return "ロン"
-        case .zimo:   return "ツモ"
-        case .pingju: return "流局"
+        case .zimo:     return "ツモ"
+        case .pingju:   return "流局"
+        case .kyuushu:  return "九種九牌"
         }
     }
 
@@ -55,6 +57,7 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         case .rong:           return Color(red: 0.55, green: 0.15, blue: 0.15)
         case .zimo:           return Color(red: 0.55, green: 0.15, blue: 0.15)
         case .pingju:         return Color(red: 0.25, green: 0.25, blue: 0.45)
+        case .kyuushu:        return Color(red: 0.25, green: 0.25, blue: 0.45)
         }
     }
 }
@@ -67,32 +70,32 @@ struct PlayerButtonView: View {
 
     // HTMLの並び順に固定
     private let order: [PlayerButtonAction] = [
-        .cancel, .noten, .chi, .peng, .gang, .angang, .kagang, .minggang, .lizhi, .rong, .zimo, .pingju
+        .cancel, .noten, .chi, .peng, .gang, .angang, .kagang, .minggang, .lizhi, .rong, .zimo, .pingju, .kyuushu
     ]
 
     var body: some View {
-        HStack(spacing: 6) {
+        HStack(spacing: 30) {
             ForEach(order, id: \.self) { action in
                 if visibleActions.contains(action) {
                     Button {
                         onAction(action)
                     } label: {
                         Text(action.label)
-                            .font(.system(size: 15, weight: .bold))
+                            .font(.system(size: 18, weight: .bold))
                             .foregroundColor(.white)
-                            .frame(minWidth: 52, minHeight: 36)
-                            .padding(.horizontal, 8)
+                            .frame(minWidth: 64, minHeight: 48)
+                            .padding(.horizontal, 10)
                             .background(action.color)
-                            .cornerRadius(6)
+                            .cornerRadius(8)
                     }
                     .buttonStyle(.plain)
                 }
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
         .background(Color.black.opacity(0.55))
-        .cornerRadius(8)
+        .cornerRadius(10)
     }
 }
 

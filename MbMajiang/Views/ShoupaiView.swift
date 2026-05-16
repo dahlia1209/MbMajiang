@@ -15,6 +15,16 @@ struct ShoupaiView: View {
     var highlightedIndices: Set<Int>? = nil
     /// 選択済みインデックス（チー選択中の1枚目など）
     var selectedIndices: Set<Int> = []
+    /// ドラ表示牌ラベルの配列（"m1" 等）。空の場合はドラ強調なし
+    var baopai: [String] = []
+    /// 手牌全体の表示倍率（1.0 = 標準）
+    var scale: CGFloat = 1.0
+    /// シャンテン数を下げる有効捨て牌のインデックス（青丸を表示）
+    var effectiveDiscardIndices: Set<Int> = []
+
+    private var doraLabels: Set<String> {
+        Set(baopai.flatMap { baopaiTable[$0] ?? [] })
+    }
 
     private func tajia(_ pai: Pai) -> Pai {
         var p = pai
@@ -22,8 +32,31 @@ struct ShoupaiView: View {
         return p
     }
 
+    @State private var lastDragIndex: Int? = nil
+
     private func isEnabled(_ index: Int) -> Bool {
         highlightedIndices.map { $0.contains(index) } ?? true
+    }
+
+    private var fulouTotalWidth: CGFloat {
+        shoupai.fulou.reduce(0) { $0 + FulouGroupView.width(of: $1) * scale }
+    }
+
+    private var zimoStartX: CGFloat {
+        let bingpaiWidth = CGFloat(shoupai.bingpai.count) * 22 * scale
+        let remainingWidth = max(0, CGFloat(13 - shoupai.bingpai.count) * 22 * scale - fulouTotalWidth)
+        return bingpaiWidth + remainingWidth + 10
+    }
+
+    private func tileIndex(at x: CGFloat) -> Int? {
+        let tileW = 22 * scale
+        if x >= 0, x < CGFloat(shoupai.bingpai.count) * tileW {
+            return Int(x / tileW)
+        }
+        if shoupai.zimo != nil, x >= zimoStartX, x < zimoStartX + tileW {
+            return shoupai.bingpai.count
+        }
+        return nil
     }
 
     var body: some View {
@@ -34,8 +67,7 @@ struct ShoupaiView: View {
             }
 
             // 13枚分の残りスペース（副露グループ分を差し引いて間隔を詰める）
-            let fulouTotalWidth = shoupai.fulou.reduce(0) { $0 + FulouGroupView.width(of: $1) }
-            let remainingWidth = max(0, CGFloat(13 - shoupai.bingpai.count) * 22 - fulouTotalWidth)
+            let remainingWidth = max(0, CGFloat(13 - shoupai.bingpai.count) * 22 * scale - fulouTotalWidth)
             Color.clear.frame(width: remainingWidth)
 
             Spacer().frame(width: 10)
@@ -43,39 +75,76 @@ struct ShoupaiView: View {
             if let zimo = shoupai.zimo {
                 paiCell(pai: isTajia ? tajia(zimo) : zimo, index: shoupai.bingpai.count)
             } else {
-                Color.clear.frame(width: 22)
+                Color.clear.frame(width: 22 * scale)
             }
 
             // 副露グループ（ツモの右側）
             if !shoupai.fulou.isEmpty {
                 Spacer().frame(width: 25)
                 ForEach(shoupai.fulou.indices, id: \.self) { i in
-                    FulouGroupView(group: shoupai.fulou[i])
+                    FulouGroupView(group: shoupai.fulou[i], baopai: baopai)
+                        .scaleEffect(scale)
+                        .frame(width: FulouGroupView.width(of: shoupai.fulou[i]) * scale,
+                               height: 30 * scale)
                 }
             }
         }
+//        .padding(.top,0)
+//        .coordinateSpace(name: "shoupai")
+//        .contentShape(Rectangle())
+        .gesture(
+            DragGesture(minimumDistance: 0, coordinateSpace: .named("shoupai"))
+                .onChanged { value in
+                    let x = value.location.x
+                    guard let index = tileIndex(at: x),
+                          index != lastDragIndex,
+                          isEnabled(index),
+                          onTapPai != nil else { return }
+                    lastDragIndex = index
+                    SoundManager.shared.play("tile_select")
+                    onTapPai?(index)
+                }
+                .onEnded { _ in lastDragIndex = nil },
+            including: onTapPai != nil ? .all : .none
+        )
+    }
+
+    private func isDora(_ pai: Pai) -> Bool {
+        guard pai.revealed else { return false }
+        if ["m0","p0","s0"].contains(pai.label) { return true }
+        return doraLabels.contains(Pai.normalize(pai.label))
     }
 
     @ViewBuilder
     private func paiCell(pai: Pai, index: Int) -> some View {
         let enabled = isEnabled(index)
-        let highlighted = highlightedIndices != nil && enabled
         let selected = selectedIndices.contains(index)
+        let isEffective = effectiveDiscardIndices.contains(index)
         PaiView(pai: pai)
+            .scaleEffect(scale)
+            .frame(width: 22 * scale, height: 30 * scale)
+            .overlay(alignment: .top) { Color.black.opacity(0.01).offset(y: -30 * scale) }
             .overlay {
-                if selected {
+                if isDora(pai) {
                     RoundedRectangle(cornerRadius: 3)
-                        .stroke(Color.orange, lineWidth: 2)
+                        .fill(Color.yellow.opacity(0.25))
                 }
             }
-            .offset(y: selected ? -10 : highlighted ? -6 : 0)
-            .opacity(enabled || selected ? 1.0 : 0.35)
-            .onTapGesture {
-                guard enabled else { return }
-                onTapPai?(index)
+            .overlay(alignment: .top) {
+                if isEffective {
+                    Circle()
+                        .fill(Color.blue)
+                        .frame(width: 6, height: 6)
+                        .offset(y: -8)
+                }
             }
+            .offset(y: selected ? -10 : 0)
+            .opacity(enabled || selected ? 1.0 : 0.35)
     }
+        
 }
+
+
 
 extension ShoupaiView {
     init(_ bingpai: [String] = [], _ zimo: String? = nil,_ isCPU:Bool=false) {
@@ -86,6 +155,14 @@ extension ShoupaiView {
 
 #Preview("通常", traits: .landscapeLeft) {
     ShoupaiView(["s1","s1","s1","s2","s3","s4","s5","s6","s7","s8","s9","s9","s9"], "z1")
+}
+
+#Preview("ドラあり", traits: .landscapeLeft) {
+    // baopai "m4" → ドラは m5 と m0（赤ドラ）
+    ShoupaiView(
+        shoupai: Shoupai(["m5","m5","m5","p1","p2","p3","s7","s8","s9","z1","z1","z1"], "m0"),
+        baopai: ["m4"]
+    )
 }
 
 #Preview("ポン（上家）", traits: .landscapeLeft) {

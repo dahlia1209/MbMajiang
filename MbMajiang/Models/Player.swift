@@ -7,6 +7,15 @@
 
 import Foundation
 
+// MARK: - Perf logging
+private func t() -> Double { Date().timeIntervalSince1970 * 1000 }
+private func perfLog(_ label: String, _ start: Double, extra: String = "") {
+    let dt = t() - start
+    if dt >= 0.5 {
+        print(String(format: "[PERF] %@ %.2fms%@", label, dt, extra.isEmpty ? "" : " | \(extra)"))
+    }
+}
+
 // MARK: - Player
 @Observable
 class Player {
@@ -47,37 +56,55 @@ class Player {
     
     func onZimo(_ status: GameStatus) {
         if self.id == status.player {
+            let _tOnZimo = t()
+            self.status.forbiddenDapaiLabels = []
             if self.status.isLizhi {
                 // リーチ中: ツモ和了できる場合のみボタン表示、それ以外は自動ツモ切り
                 let tiles = self.shoupai.allLabels
+                let _t1 = t(); let _ = hasYaku(tiles: tiles, isZimo: true, status: status)
+                perfLog("p\(id).hasYaku(lizhi-zimo)", _t1)
                 if hasYaku(tiles: tiles, isZimo: true, status: status) {
                     self.status.availableButtonActions = [.zimo]
                 }
-                
-                
+
+
                 if self.status.availableButtonActions.isEmpty{
                     // ボタンなし → processPlayerActions がツモ切りを実行
                     self.status.decision = .dapai
                     self.status.selectedIdx = self.shoupai.bingpai.count
                     self.status.availableButtonActions = []
                 }
-                
-                
+
+
             } else {
                 var buttons: Set<PlayerButtonAction> = []
                 let tiles = self.shoupai.allLabels
+                let _t2 = t()
                 if hasYaku(tiles: tiles, isZimo: true, status: status) {
                     buttons.insert(.zimo)
                     buttons.insert(.cancel)
                 }
+                perfLog("p\(id).hasYaku(zimo)", _t2)
                 // 門前テンパイなら .lizhi を表示
-                if status.paishu >= 4 && canDeclareRiichi() {
-                    self.status.lizhiCandidateIndices=lizhiCandidateIndices()
-                    buttons.insert(.lizhi)
-                    if buttons.isEmpty { buttons.insert(.cancel) }
+                if status.paishu >= 4 {
+                    let _t3 = t()
+                    let canRiichi = canDeclareRiichi()
+                    perfLog("p\(id).canDeclareRiichi", _t3, extra: "-> \(canRiichi)")
+                    if canRiichi {
+                        let _t4 = t()
+                        self.status.lizhiCandidateIndices = lizhiCandidateIndices()
+                        perfLog("p\(id).lizhiCandidateIndices", _t4)
+                        buttons.insert(.lizhi)
+                        if buttons.isEmpty { buttons.insert(.cancel) }
+                    }
+                }
+                // 九種九牌
+                if isKyuushuCondition() {
+                    buttons.insert(.kyuushu)
                 }
                 self.status.availableButtonActions = buttons
             }
+            perfLog("p\(id).onZimo total", _tOnZimo, extra: "turn=\(he.qipai.count)")
             
             //暗カン
             if status.paishu >= 1 && (!shoupai.gangzi.isEmpty) {
@@ -87,7 +114,9 @@ class Player {
             if status.paishu >= 1 && (!shoupai.kagangzi.isEmpty) {
                 self.status.availableButtonActions = [.kagang]
             }
-            
+
+            self.status.isFirstDraw = false
+
         } else {
             self.status.decision = .none
             self.status.availableButtonActions = []
@@ -97,6 +126,7 @@ class Player {
     
     func onDapai(_ status: GameStatus) {
         self.status.chiCandidates = []
+        self.status.pengCandidates = []
         let isNextPlayer = (status.player + 1) % 4 == self.id
 
         guard self.id != status.player, let label = status.dapai else {
@@ -115,12 +145,16 @@ class Player {
 
         // ポン・カン判定（リーチ中・牌切れは不可）
         if !self.status.isLizhi && status.paishu >= 1 {
-            let normalized = Hule.normalize(label)
+            let normalized = Pai.normalize(label)
             let matchCount = shoupai.bingpai.filter {
-                !$0.hidden && Hule.normalize($0.label) == normalized
+                !$0.hidden && Pai.normalize($0.label) == normalized
             }.count
             if matchCount >= 2 {
-                buttons.insert(.peng)
+                let candidates = findPengCandidates(dapai: label)
+                if !candidates.isEmpty {
+                    buttons.insert(.peng)
+                    self.status.pengCandidates = candidates
+                }
             }
             if matchCount >= 3 {
                 buttons.insert(.minggang)
@@ -147,40 +181,55 @@ class Player {
         self.status.availableButtonActions = buttons
     }
     
-    /// 上家の打牌でチー可能な手牌インデックスペアを列挙する
+    /// 上家の打牌でチー可能な手牌インデックスペアを全列挙する
     func findChiCandidates(dapai: String) -> [[Int]] {
-        let norm = Hule.normalize(dapai)
+        let norm = Pai.normalize(dapai)
         guard norm.count == 2, let suitChar = norm.first, suitChar != "z",
               let n = Int(String(norm.last!)) else { return [] }
         let suit = String(suitChar)
-        
-        // bingpai から指定ラベルの最初の visible インデックスを返す（excluding で除外可）
-        func findIdx(_ label: String, excluding: [Int] = []) -> Int? {
-            shoupai.bingpai.indices.first { i in
-                !shoupai.bingpai[i].hidden &&
-                !excluding.contains(i) &&
-                Hule.normalize(shoupai.bingpai[i].label) == label
+
+        func findAllIdx(_ label: String) -> [Int] {
+            shoupai.bingpai.indices.filter {
+                !shoupai.bingpai[$0].hidden &&
+                shoupai.bingpai[$0].normalized == label
             }
         }
-        
+
         var candidates: [[Int]] = []
-        // [n-2, n-1, n]: 手牌に n-2 と n-1 が必要
-        if n >= 3, let i1 = findIdx("\(suit)\(n-2)"),
-           let i2 = findIdx("\(suit)\(n-1)", excluding: [i1]) {
-            candidates.append([i1, i2])
+        // [n-2, n-1, n]
+        if n >= 3 {
+            for i1 in findAllIdx("\(suit)\(n-2)") {
+                for i2 in findAllIdx("\(suit)\(n-1)") where i2 != i1 {
+                    candidates.append([i1, i2])
+                }
+            }
         }
-        // [n-1, n, n+1]: 手牌に n-1 と n+1 が必要
-        if n >= 2 && n <= 8, let i1 = findIdx("\(suit)\(n-1)"),
-           let i2 = findIdx("\(suit)\(n+1)") {
-            candidates.append([i1, i2])
+        // [n-1, n, n+1]
+        if n >= 2 && n <= 8 {
+            for i1 in findAllIdx("\(suit)\(n-1)") {
+                for i2 in findAllIdx("\(suit)\(n+1)") {
+                    candidates.append([i1, i2])
+                }
+            }
         }
-        // [n, n+1, n+2]: 手牌に n+1 と n+2 が必要
-        if n <= 7, let i1 = findIdx("\(suit)\(n+1)"),
-           let i2 = findIdx("\(suit)\(n+2)", excluding: [i1]) {
-            candidates.append([i1, i2])
+        // [n, n+1, n+2]
+        if n <= 7 {
+            for i1 in findAllIdx("\(suit)\(n+1)") {
+                for i2 in findAllIdx("\(suit)\(n+2)") where i2 != i1 {
+                    candidates.append([i1, i2])
+                }
+            }
         }
         return candidates
     }
+    
+    func findPengCandidates(dapai: String)-> [[Int]] {
+        let candidates = shoupai.getPengCandidate(dapai)
+        return candidates.indices.flatMap { i in
+            candidates[(i + 1)...].indices.map { j in [candidates[i], candidates[j]] }
+        }
+    }
+    
     
     func onFulou(_ status: GameStatus) {
         self.status.availableButtonActions = []
@@ -188,14 +237,17 @@ class Player {
         self.status.decision = .none
     }
     
-    func peng(dapai: Pai, tajia: Jia, startIdx: Int = 0) {
-          let pengCandidate = shoupai.getPengCandidate(dapai.label).sorted(by: >)
-          guard pengCandidate.count >= 2, startIdx + 1 < pengCandidate.count || pengCandidate.count == 2 else { return }
-                                                           
-          let selected = pengCandidate.count >= 3
-              ? Array(pengCandidate[startIdx..<(startIdx + 2)])
-              : pengCandidate
-       
+    func peng(dapai: Pai, tajia: Jia,
+              kuichikaeLevel: GameSettings.KuichikaeLevel = .none) {
+          let selected: [Int]
+          if !status.selectedPengIndices.isEmpty {
+              selected = status.selectedPengIndices.sorted(by: >)
+          } else {
+              let candidates = shoupai.getPengCandidate(dapai.label).sorted(by: >)
+              guard candidates.count >= 2 else { return }
+              selected = Array(candidates.prefix(2))
+          }
+
           var peng = selected.map { shoupai.bingpai.remove(at: $0) }
           switch tajia {
           case .shangjia: peng.insert(dapai, at: 0)
@@ -205,6 +257,8 @@ class Player {
           shoupai.fulou.insert(peng, at: 0)
           shoupai.lipai()
           status.isMenqian = false
+          status.selectedPengIndices = []
+          status.forbiddenDapaiLabels = kuichikaeLabels(fulou: shoupai.fulou[0], isChi: false, level: kuichikaeLevel)
       }
     
     func minggang(dapai:Pai,tajia:Jia){
@@ -224,7 +278,9 @@ class Player {
     func angang() {
         guard let selectedAngang = status.selectedAngang else { return }
         shoupai.lipai()
-        let indices = shoupai.allLabels.indices.filter { shoupai.allLabels[$0] == selectedAngang }.sorted(by: >)
+        let norm = Pai.normalize(selectedAngang)
+        let normalized = shoupai.normalizedAllLabels
+        let indices = normalized.indices.filter { normalized[$0] == norm }.sorted(by: >)
         guard indices.count == 4 else { return }
         var angang = indices.map { shoupai.bingpai.remove(at: $0) }
         angang[0].revealed = false
@@ -239,8 +295,8 @@ class Player {
         shoupai.lipai()
         guard let index = shoupai.allLabels.indices.firstIndex(where: { shoupai.allLabels[$0] == selectedKagang }) else { return }
         let kapai = shoupai.bingpai.remove(at: index)
-        let normalized = Hule.normalize(selectedKagang)
-        guard let fulouIndex = shoupai.fulou.indices.firstIndex(where: { i in shoupai.fulou[i].count == 3 && shoupai.fulou[i].allSatisfy { Hule.normalize($0.label) == normalized }
+        let normalized = Pai.normalize(selectedKagang)
+        guard let fulouIndex = shoupai.fulou.indices.firstIndex(where: { i in shoupai.fulou[i].count == 3 && shoupai.fulou[i].allSatisfy { $0.normalized == normalized }
         }) else { return }
         shoupai.fulou[fulouIndex].insert(kapai, at: 0)
         shoupai.lipai()
@@ -248,8 +304,9 @@ class Player {
     }
 
     
-    func chi(dapai: Pai, tajia: Jia = .shangjia) {
-        let chiCandidate = status.selectedChi.sorted(by: >)
+    func chi(dapai: Pai, tajia: Jia = .shangjia,
+             kuichikaeLevel: GameSettings.KuichikaeLevel = .none) {
+        let chiCandidate = status.selectedChiIndices.sorted(by: >)
         guard chiCandidate.count == 2 else { return }
         var chi = chiCandidate.map { shoupai.bingpai.remove(at: $0) }
         switch tajia {
@@ -260,13 +317,36 @@ class Player {
         shoupai.fulou.insert(chi, at: 0)
         shoupai.lipai()
         status.isMenqian = false
-        status.selectedChi = []
+        status.selectedChiIndices = []
+        status.forbiddenDapaiLabels = kuichikaeLabels(fulou: shoupai.fulou[0], isChi: true, level: kuichikaeLevel)
+    }
+
+    private func kuichikaeLabels(fulou: [Pai], isChi: Bool, level: GameSettings.KuichikaeLevel) -> Set<String> {
+        guard level != .genmotsu else { return [] }
+        guard let rotated = fulou.first(where: { $0.rotated }) else { return [] }
+        let genmotsu = rotated.normalized
+        var forbidden: Set<String> = [genmotsu]
+
+        if isChi && level == .none {
+            let norms = fulou.map { $0.normalized }
+            guard let suit = norms.first?.first.map(String.init), suit != "z" else { return forbidden }
+            let nums = norms.compactMap { n -> Int? in
+                guard n.count == 2 else { return nil }
+                return Int(String(n.last!))
+            }.sorted()
+            guard nums.count == 3,
+                  let rotNum = Int(String(genmotsu.last!)) else { return forbidden }
+            let lo = nums[0]; let hi = nums[2]
+            if rotNum == lo, hi + 1 <= 9 { forbidden.insert("\(suit)\(hi + 1)") }
+            if rotNum == hi, lo - 1 >= 1  { forbidden.insert("\(suit)\(lo - 1)") }
+        }
+        return forbidden
     }
     
     func dapai()->Pai{
         let bingpaiCount = shoupai.bingpai.count
         let isZimoDapai = status.selectedIdx ?? 99 >= bingpaiCount
-        
+
         let dapai: Pai
         if isZimoDapai {
             dapai = shoupai.zimo!
@@ -278,7 +358,9 @@ class Player {
             shoupai.bingpai[status.selectedIdx!].hidden = true
         }
         shoupai.lipai()
-        
+
+        if status.firstDapai == nil { status.firstDapai = Pai.normalize(dapai.label) }
+
         return dapai
     }
     
@@ -302,26 +384,35 @@ class Player {
             hedi: false,
             tianhu: false,
             dihu: false,
-            winTile: isZimo ? Hule.normalize(self.shoupai.zimo?.label ?? "") : Hule.normalize(dapai ?? "")
+            winTile: isZimo ? self.shoupai.zimo?.normalized ?? "" : Pai.normalize(dapai ?? "")
         )
         return !Hule.getYaku(tiles: tiles, context: context, fulouTiles: shoupai.fulouTiles).yaku.isEmpty
     }
     
     func isFuriten(afterLizhiDiscards:[String]=[],junDiscards:[String]=[]) -> Bool {
-        let currentTiles = shoupai.visibleLabels.map { Hule.normalize($0) }
-        let target = Set(he.qipai.map { Hule.normalize($0.label) } + afterLizhiDiscards + junDiscards)
+        let _t0 = t()
+        let currentTiles = shoupai.visibleLabels.map { Pai.normalize($0) }
+        let target = Set(he.qipai.map { $0.normalized } + afterLizhiDiscards + junDiscards)
         //捨て牌にアガリ牌が含まれていないか確認
-        return target.contains { label in
+        let result = target.contains { label in
             let allTiles = currentTiles + [label]
             guard allTiles.count >= 2 && (allTiles.count - 2) % 3 == 0 else { return false }
             return !Hule.winningDecompositions(allTiles).isEmpty
         }
+        perfLog("p\(id).isFuriten", _t0, extra: "discard=\(he.qipai.count) unique=\(target.count) -> \(result)")
+        return result
     }
     
+    func isKyuushuCondition() -> Bool {
+        guard status.isFirstDraw else { return false }
+        let yaojiu: Set<String> = ["m1","m9","p1","p9","s1","s9","z1","z2","z3","z4","z5","z6","z7"]
+        return yaojiu.filter { shoupai.normalizedAllLabels.contains($0) }.count >= 9
+    }
+
     // テンパイかつ門前なら立直宣言可能（点数チェックは Game 側で行う）
     func canDeclareRiichi() -> Bool {
         guard status.isMenqian else { return false }
-        let all = shoupai.allLabels.map { Hule.normalize($0) }
+        let all = shoupai.allLabels.map { Pai.normalize($0) }
         return all.indices.contains { i in
             var rest = all
             rest.remove(at: i)
@@ -367,6 +458,19 @@ class Player {
         status.decision = .lizhi
     }
 
+    func startPengSelection() {
+        status.isSelectingPeng = true
+    }
+
+    func selectPeng(_ index: Int) {
+        status.selectedPengIndices.append(index)
+        guard status.selectedPengIndices.count >= 2 else { return }
+        status.isSelectingPeng = false
+        status.decision = .peng
+        onActionReady?()
+        onActionReady = nil
+    }
+
     func startAngangSelection() {
         status.isSelectingAngang = true
     }
@@ -393,8 +497,8 @@ class Player {
     }
     
     func selectChi(_ index: Int) {
-        status.selectedChi.append(index)
-        guard status.selectedChi.count >= 2 else { return }
+        status.selectedChiIndices.append(index)
+        guard status.selectedChiIndices.count >= 2 else { return }
 
         status.isSelectingChi = false
         status.decision = .chi
@@ -423,7 +527,7 @@ class Player {
     }
     
     func lizhiCandidateIndices()-> Set<Int> {
-        let all = shoupai.allLabels.map { Hule.normalize($0) }
+        let all = shoupai.allLabels.map { Pai.normalize($0) }
         guard all.count >= 2, (all.count - 2) % 3 == 0 else {return [] }
         var result: Set<Int> = []
         let bingpaiCount = shoupai.bingpai.count
@@ -455,11 +559,25 @@ class AIPlayer: Player {
     override func onZimo(_ status: GameStatus) {
         if isCurrentId(status.player) {
             let tiles = self.shoupai.allLabels
+            // ツモ和了判定
             if hasYaku(tiles: tiles, isZimo: true, status: status) {
-                self.status.decision = .hule  // ツモアガリ
-            } else {
-                selectDapai()
+                self.status.decision = .hule
+                return
             }
+            // リーチ中はツモ切り（手牌変更不可）
+            if self.status.isLizhi {
+                self.status.decision = .dapai
+                self.status.selectedIdx = shoupai.bingpai.count
+                return
+            }
+            // 門前テンパイならリーチ宣言
+            if status.paishu >= 4 && canDeclareRiichi() {
+                self.status.isSelectingRiichi = true
+                selectDapai()
+                return
+            }
+            // 通常打牌
+            selectDapai()
         } else {
             self.status.decision = .none
         }
@@ -498,23 +616,24 @@ class AIPlayer: Player {
     
     // シャンテン数が最小になる牌を選んで打牌する
     func selectDapai() {
+        let _t0 = t()
         // bingpai(13枚) + zimo(1枚) の計14枚を正規化したラベル配列を作る
         let bingpai = shoupai.bingpai.filter { !$0.hidden }
-        var allLabels = bingpai.map { Hule.normalize($0.label) }
+        var allLabels = bingpai.map { $0.normalized }
         if let zimo = shoupai.zimo {
-            allLabels.append(Hule.normalize(zimo.label))
+            allLabels.append(zimo.normalized)
         }
-        
+
         // 14枚でない場合はツモ切りにフォールバック
         guard allLabels.count == 14 else {
             self.status.decision = .dapai
             self.status.selectedIdx = shoupai.bingpai.count
             return
         }
-        
+
         var bestIdx = shoupai.bingpai.count  // デフォルトはツモ切り
         var bestShanten = Int.max
-        
+
         // 各牌を1枚ずつ除いた13枚でシャンテン数を計算
         for i in 0..<allLabels.count {
             var remaining = allLabels
@@ -525,9 +644,10 @@ class AIPlayer: Player {
                 bestIdx = i < bingpai.count ? i : shoupai.bingpai.count
             }
         }
-        
+
         self.status.decision = .dapai
         self.status.selectedIdx = bestIdx
+        perfLog("p\(id).selectDapai", _t0, extra: "shanten=\(bestShanten) turn=\(he.qipai.count)")
     }
     
     func isCurrentId(_ currentPlayer: Int) -> Bool {
@@ -553,15 +673,21 @@ struct PlayerStatus {
     var isYifa: Bool = false
     var isMenqian: Bool = true
     var chiCandidates: [[Int]] = []
+    var pengCandidates: [[Int]] = []
     var lizhiCandidateIndices: Set<Int>=[]
     var isSelectingRiichi:Bool = false
     var isSelectingChi:Bool = false
     var isSelectingAngang:Bool = false
     var isSelectingKagang:Bool = false
     var isSelectingDapai:Bool = false
-    var selectedChi: [Int] = []
+    var isSelectingPeng:Bool = false
+    var selectedPengIndices: [Int] = []
+    var selectedChiIndices: [Int] = []
     var selectedAngang: String? = nil
     var selectedKagang: String? = nil
     var shouldRotateNextDapai: Bool = false
     var pendingLizhiPayment: Bool = false
+    var forbiddenDapaiLabels: Set<String> = []
+    var isFirstDraw: Bool = true
+    var firstDapai: String? = nil
 }

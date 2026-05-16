@@ -9,9 +9,12 @@ import SwiftUI
 
 @main
 struct MbMajiangApp: App {
+    @State private var settings = GameSettings.load()
+
     var body: some Scene {
         WindowGroup {
             TitleView()
+                .environment(settings)
         }
     }
 }

@@ -24,8 +24,8 @@ struct ScoreBoardView: View {
             scoreSection
         }
         .fixedSize()
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
         .background(Color.black)
     }
     
@@ -49,11 +49,12 @@ struct ScoreBoardView: View {
     
     // MARK: - Dora Section
     var doraSection: some View {
-        VStack(spacing: 8) {
+        HStack(spacing: 8) {
             WangpaiView(wangpai: wangpai)
-            Text("残り　\(self.paishu)")
+            Text("残り\n\(self.paishu)")
                 .font(.system(size: 12))
                 .foregroundColor(.white.opacity(0.6))
+                .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
     }

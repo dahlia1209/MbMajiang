@@ -8,18 +8,12 @@
 import SwiftUI
 
 struct PaiView: View {
-    var pai:Pai
-    
-    
-    
+    var pai: Pai
+
     var body: some View {
         ZStack {
             RoundedRectangle(cornerRadius: 3)
-                .fill(self.isRevealed() ? Color.white : Color(red: 229/255, green: 179/255, blue: 67/255))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 3)
-                        .stroke(self.isRevealed() ? Color.gray.opacity(0.4) : Color.white.opacity(0.2), lineWidth: 0.5)
-                )
+                .fill(isRevealed() ? Color.white : Color(red: 229/255, green: 179/255, blue: 67/255))
 
             if self.isRevealed() {
                 if let uiImage = UIImage(named: pai.label) {
@@ -28,6 +22,7 @@ struct PaiView: View {
                 }
             }
         }
+        .clipped()
         .frame(width: 22, height: 30)
         .rotationEffect(pai.rotated ? .degrees(90) : .zero)
         .frame(width: pai.rotated ? 30 : 22, height: pai.rotated ? 22 : 30)
@@ -56,13 +51,17 @@ struct PaiView: View {
 }
 
 extension PaiView {
-    init(_ code: String, _ reveal: Bool=true, _ hidden:Bool = false)  {
+    init(_ code: String, reveal: Bool = true, hidden: Bool = false) {
         self.pai = Pai(code)
-        self.pai.revealed=reveal
-        self.pai.hidden=hidden
+        self.pai.revealed = reveal
+        self.pai.hidden = hidden
     }
 }
 
-#Preview {
+#Preview("通常") {
     PaiView("p4")
+}
+
+#Preview("裏") {
+    PaiView("p4", reveal: false)
 }

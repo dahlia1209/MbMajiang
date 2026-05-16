@@ -9,11 +9,27 @@ import SwiftUI
 
 struct FulouGroupView: View {
     let group: [Pai]
+    var baopai: [String] = []
+
+    private var doraLabels: Set<String> {
+        Set(baopai.flatMap { baopaiTable[$0] ?? [] })
+    }
+
+    private func isDora(_ pai: Pai) -> Bool {
+        if ["m0","p0","s0"].contains(pai.label) { return true }
+        return doraLabels.contains(Pai.normalize(pai.label))
+    }
 
     var body: some View {
         HStack(spacing: 0) {
             ForEach(group.indices, id: \.self) { i in
                 PaiView(pai: group[i])
+                    .overlay {
+                        if isDora(group[i]) {
+                            RoundedRectangle(cornerRadius: 3)
+                                .fill(Color.yellow.opacity(0.25))
+                        }
+                    }
             }
         }
     }

@@ -11,9 +11,6 @@ struct HeView: View {
     var he: He
     var highlightedIndex: Int? = nil
 
-    // 1行6枚 × 22px
-    private let rowWidth: CGFloat = 22 * 6
-
     var body: some View {
         let row1 = Array(he.qipai.prefix(6))
         let row2 = he.qipai.count > 6  ? Array(he.qipai[6..<min(12, he.qipai.count)]) : []
@@ -24,30 +21,30 @@ struct HeView: View {
                 ForEach(row1.indices, id: \.self) { i in
                     paiCell(row1[i], globalIndex: i)
                 }
+                Spacer(minLength: 0)
             }
-            .frame(width: rowWidth, alignment: .leading)
-
             HStack(spacing: 0) {
                 ForEach(row2.indices, id: \.self) { i in
                     paiCell(row2[i], globalIndex: 6 + i)
                 }
+                Spacer(minLength: 0)
             }
-            .frame(width: rowWidth, alignment: .leading)
-
             HStack(spacing: 0) {
                 ForEach(row3.indices, id: \.self) { i in
                     paiCell(row3[i], globalIndex: 12 + i)
                 }
+                Spacer(minLength: 0)
             }
-            .frame(width: rowWidth, alignment: .leading)
         }
-        .frame(width: rowWidth, height: 30 * 3, alignment: .topLeading)
+        // 通常6枚×22px=132px、回転牌は30pxのため余裕を持たせた固定幅
+        .frame(width: 22 * 6 + 10, height: 30 * 3, alignment: .topLeading)
     }
 
     @ViewBuilder
     private func paiCell(_ pai: Pai, globalIndex: Int) -> some View {
         PaiView(pai.label)
             .rotationEffect(pai.rotated ? .degrees(90) : .degrees(0))
+            .frame(width: pai.rotated ? 30 : 22, height: pai.rotated ? 22 : 30)
             .opacity(globalIndex == highlightedIndex ? 0.5 : 1.0)
     }
 }

@@ -1,0 +1,375 @@
+import SwiftUI
+
+struct GameSettingsView: View {
+    @Environment(GameSettings.self) private var settings
+    @Environment(\.dismiss) private var dismiss
+    @State private var startedGame: Game? = nil
+
+    private let gold      = Color(red: 0.8, green: 0.6, blue: 0.2)
+    private let goldLight = Color(red: 1.0, green: 0.92, blue: 0.6)
+    private let labelW: CGFloat = 148
+
+    var body: some View {
+        ZStack {
+            BackgroundLayer()
+
+            VStack(spacing: 0) {
+                header
+
+                Divider()
+                    .background(gold.opacity(0.3))
+                    .padding(.horizontal, 60)
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+
+                        sectionHeader("点数設定")
+                        numberRow("配給原点",
+                            value: Binding(get: { settings.haikyuGenten },
+                                           set: { settings.haikyuGenten = $0 }))
+                        junikitenRow
+                        radioRow("連風牌", selection: Bindable(settings).renpuFu)
+
+                        groupDivider
+
+                        sectionHeader("牌設定")
+                        akadoraRow
+                        boolRow("クイタン", isOn: Bindable(settings).kuitanAri)
+                        radioRow("喰い替え", selection: Bindable(settings).kuichikaeLevel)
+
+                        groupDivider
+
+                        sectionHeader("進行設定")
+                        radioRow("場数", selection: Bindable(settings).kyokuCount)
+                        boolRow("途中流局", isOn: Bindable(settings).tochukuryokuAri)
+                        boolRow("流し満貫", isOn: Bindable(settings).nagashiManganAri)
+                        boolRow("ノーテン宣言", isOn: Bindable(settings).notenSengenAri)
+                        boolRow("ノーテン罰", isOn: Bindable(settings).notenBatsuAri)
+                        radioRow("同時和了", selection: Bindable(settings).dojiHuleMax)
+                        radioRow("連荘方式", selection: Bindable(settings).renzhuFang)
+                        boolRow("トビ終了", isOn: Bindable(settings).tobiEndAri)
+                        boolRow("オーラス止め", isOn: Bindable(settings).orasudomeAri)
+                        radioRow("延長戦方式", selection: Bindable(settings).enchossenFang)
+
+                        groupDivider
+
+                        sectionHeader("立直・ドラ")
+                        boolRow("一発", isOn: Bindable(settings).ippatsuAri)
+                        boolRow("裏ドラ", isOn: Bindable(settings).uradoraAri)
+                        kandoraRow
+                        boolRow("カン裏", isOn: Bindable(settings).kanUraAri)
+                        boolRow("ツモ番なしリーチ", isOn: Bindable(settings).noTsumoBanRiichiAri)
+                        radioRow("リーチ後の暗槓", selection: Bindable(settings).riichiAnkanLevel)
+
+                        groupDivider
+
+                        sectionHeader("表示設定")
+                        boolRow("手牌表示オプション", isOn: Bindable(settings).showHandDisplayOption)
+                        boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
+                        boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)
+
+                        groupDivider
+
+                        sectionHeader("役満")
+                        boolRow("役満の複合", isOn: Bindable(settings).yakumanFukugouAri)
+                        boolRow("ダブル役満", isOn: Bindable(settings).doubleYakumanAri)
+                        boolRow("数え役満", isOn: Bindable(settings).kazoeYakumanAri)
+                        boolRow("役満パオ", isOn: Bindable(settings).yakumanPaoAri)
+                        boolRow("切り上げ満貫", isOn: Bindable(settings).kiriageMangan)
+                    }
+                    .padding(.horizontal, 60)
+                    .padding(.top, 20)
+                }
+
+                footer
+            }
+        }
+        .fullScreenCover(item: $startedGame) { game in
+            BoardView(game: game, debugActions: [])
+        }
+        .onDisappear { settings.save() }
+        .transaction { $0.disablesAnimations = true }
+    }
+
+    // MARK: - Header
+
+    private var header: some View {
+        HStack {
+            Button(action: { settings.save(); dismiss() }) {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.left")
+                        .font(.system(size: 13, weight: .semibold))
+                    Text("戻る")
+                        .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                }
+                .foregroundStyle(gold)
+            }
+            .buttonStyle(.plain)
+            .padding(.leading, 60)
+
+            Spacer()
+
+            Text("SETTINGS")
+                .font(.system(size: 13, weight: .semibold, design: .monospaced))
+                .foregroundStyle(gold)
+                .tracking(6)
+
+            Spacer()
+
+            Color.clear.frame(width: 80)
+        }
+        .frame(height: 44)
+    }
+
+    // MARK: - Section / Group
+
+    private func sectionHeader(_ title: String) -> some View {
+        HStack(spacing: 8) {
+            Text(title)
+                .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                .foregroundStyle(gold.opacity(0.8))
+                .tracking(3)
+            Rectangle()
+                .fill(gold.opacity(0.25))
+                .frame(height: 0.5)
+        }
+    }
+
+    private var groupDivider: some View {
+        Rectangle()
+            .fill(gold.opacity(0.12))
+            .frame(height: 1)
+            .padding(.vertical, 4)
+    }
+
+    // MARK: - Generic Row Builders
+
+    private func boolRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        row(title) {
+            radioButton("なし", selected: !isOn.wrappedValue) { isOn.wrappedValue = false }
+            radioButton("あり", selected:  isOn.wrappedValue) { isOn.wrappedValue = true  }
+        }
+    }
+
+    private func radioRow<T: CaseIterable & Hashable & RawRepresentable>(
+        _ title: String,
+        selection: Binding<T>
+    ) -> some View where T.AllCases: RandomAccessCollection, T.RawValue == String {
+        row(title) {
+            ForEach(Array(T.allCases), id: \.self) { option in
+                radioButton(option.rawValue, selected: selection.wrappedValue == option) {
+                    selection.wrappedValue = option
+                }
+            }
+        }
+    }
+
+    private func numberRow(_ title: String, value: Binding<Int>) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            rowLabel(title)
+            numField(value: value, width: 80)
+            Spacer()
+        }
+    }
+
+    private func row<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            rowLabel(title)
+            HStack(spacing: 14) { content() }
+            Spacer()
+        }
+    }
+
+    private func rowLabel(_ title: String) -> some View {
+        Text(title)
+            .font(.system(size: 13, weight: .medium))
+            .foregroundStyle(goldLight)
+            .frame(width: labelW, alignment: .leading)
+    }
+
+    // MARK: - Special Rows
+
+    private var junikitenRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(alignment: .firstTextBaseline, spacing: 12) {
+                rowLabel("順位点")
+                HStack(spacing: 10) {
+                    rankFieldDisplay(rank: "1着", value: settings.junkiten1)
+                    ForEach(0..<3, id: \.self) { i in
+                        rankFieldEdit(rank: "\(i + 2)着",
+                                      binding: Binding(
+                                        get: { settings.junikitenRanks[i] },
+                                        set: { settings.junikitenRanks[i] = $0 }))
+                    }
+                }
+                Spacer()
+            }
+            HStack(spacing: 6) {
+                Color.clear.frame(width: labelW + 12)
+                checkboxButton("ポイントを四捨五入する", isOn: Bindable(settings).junkitenRounding)
+            }
+        }
+    }
+
+    private var akadoraRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            rowLabel("赤牌")
+            HStack(spacing: 12) {
+                akadoraInput("萬", value: Bindable(settings).akadoraMan)
+                akadoraInput("筒", value: Bindable(settings).akadoraPin)
+                akadoraInput("索", value: Bindable(settings).akadoraSou)
+            }
+            Spacer()
+        }
+    }
+
+    private func akadoraInput(_ label: String, value: Binding<Int>) -> some View {
+        HStack(spacing: 4) {
+            Text(label).font(.system(size: 12)).foregroundStyle(gold.opacity(0.6))
+            numField(value: value, width: 36)
+        }
+    }
+
+    private var kandoraRow: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            row("カンドラ") {
+                radioButton("なし", selected: !settings.kandoraAri) { settings.kandoraAri = false }
+                radioButton("あり", selected:  settings.kandoraAri) { settings.kandoraAri = true  }
+            }
+            HStack(spacing: 6) {
+                Color.clear.frame(width: labelW + 12)
+                checkboxButton("後乗せ", isOn: Bindable(settings).kandoraNochigakeAri)
+            }
+        }
+    }
+
+    // MARK: - Atomic Components
+
+    private func radioButton(_ label: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 4) {
+                Image(systemName: selected ? "circle.inset.filled" : "circle")
+                    .font(.system(size: 11))
+                    .foregroundStyle(selected ? gold : gold.opacity(0.35))
+                Text(label)
+                    .font(.system(size: 12))
+                    .foregroundStyle(selected ? goldLight : goldLight.opacity(0.5))
+            }
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func checkboxButton(_ label: String, isOn: Binding<Bool>) -> some View {
+        Button(action: { isOn.wrappedValue.toggle() }) {
+            HStack(spacing: 6) {
+                Image(systemName: isOn.wrappedValue ? "checkmark.square.fill" : "square")
+                    .font(.system(size: 12))
+                    .foregroundStyle(isOn.wrappedValue ? gold : gold.opacity(0.35))
+                Text(label)
+                    .font(.system(size: 12))
+                    .foregroundStyle(gold.opacity(0.7))
+            }
+        }
+        .buttonStyle(.plain)
+        .fixedSize()
+    }
+
+    private func numField(value: Binding<Int>, width: CGFloat) -> some View {
+        TextField("", value: value, format: .number)
+            .textFieldStyle(.plain)
+            .font(.system(size: 13, design: .monospaced))
+            .foregroundStyle(goldLight)
+            .frame(width: width)
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 6).padding(.vertical, 3)
+            .background(fieldBackground)
+    }
+
+    private func rankFieldDisplay(rank: String, value: Int) -> some View {
+        HStack(spacing: 4) {
+            Text(rank).font(.system(size: 11)).foregroundStyle(gold.opacity(0.55))
+            Text("\(value)")
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(goldLight.opacity(0.4))
+                .frame(width: 52)
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(gold.opacity(0.15), lineWidth: 0.5)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.02)))
+                )
+        }
+    }
+
+    private func rankFieldEdit(rank: String, binding: Binding<Int>) -> some View {
+        HStack(spacing: 4) {
+            Text(rank).font(.system(size: 11)).foregroundStyle(gold.opacity(0.55))
+            TextField("", value: binding, format: .number)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, design: .monospaced))
+                .foregroundStyle(goldLight)
+                .frame(width: 52)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 6).padding(.vertical, 3)
+                .background(fieldBackground)
+        }
+    }
+
+    private var fieldBackground: some View {
+        RoundedRectangle(cornerRadius: 4)
+            .stroke(gold.opacity(0.4), lineWidth: 0.5)
+            .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.05)))
+    }
+
+    // MARK: - Footer
+
+    private var footer: some View {
+        VStack(spacing: 0) {
+            Divider()
+                .background(gold.opacity(0.3))
+                .padding(.horizontal, 60)
+
+            Button {
+                startGame()
+            } label: {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color(red: 0.8, green: 0.6, blue: 0.1).opacity(0.25))
+                        .blur(radius: 8)
+                    RoundedRectangle(cornerRadius: 4)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Color(red: 1.0, green: 0.85, blue: 0.4),
+                                         Color(red: 0.7, green: 0.5, blue: 0.1)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing),
+                            lineWidth: 1.5)
+                        .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.05)))
+                    Text("対局開始  ▶")
+                        .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [Color(red: 1.0, green: 0.92, blue: 0.6),
+                                         Color(red: 0.9, green: 0.7, blue: 0.2)],
+                                startPoint: .leading, endPoint: .trailing))
+                        .tracking(4)
+                }
+                .frame(width: 220, height: 50)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+        }
+        .background(Color(red: 12/255, green: 60/255, blue: 48/255).opacity(0.97))
+    }
+
+    // MARK: - Actions
+
+    private func startGame() {
+        startedGame = Game(settings: settings)
+    }
+}
+
+#Preview(traits: .landscapeLeft) {
+    GameSettingsView()
+        .environment(GameSettings())
+}
