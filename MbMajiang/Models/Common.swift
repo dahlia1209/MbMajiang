@@ -41,6 +41,8 @@ enum Actions {
     case kagang
     case minggang
     case kyuushu
+    case pingju
+    case noten
     case none
 }
 

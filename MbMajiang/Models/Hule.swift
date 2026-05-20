@@ -157,8 +157,9 @@ struct Yaku {
 
 // MARK: - DefenResult（点数計算結果）
 struct DefenResult {
-    let defen: Int      // 勝者の獲得点数（本場・供託込み）
-    let fenpei: [Int]   // 各プレイヤーの点数変動 [0...3]
+    let defen: Int         // 勝者の獲得点数（本場・供託込み）
+    let fenpei: [Int]      // 各プレイヤーの点数変動 [0...3]
+    let effectiveFan: Int  // 設定反映後の有効翻数（表示用）
 }
 
 // MARK: - Hule
@@ -201,34 +202,69 @@ struct Hule {
         return 6 - pairCount + max(7 - (pairCount + solo),0)
     }
     
-    static func mianziXiangting(_ tiles: [String]) -> Int {
-        guard tiles.count >= 1 && (13 - tiles.count) % 3 == 0
-        else { return 99 }
-        
-        let suitCounts = tilesToSuitCounts(tiles)
-        let combinations = enumerateBlocks(suitCounts: suitCounts)
-        
-        let fulou = (13 - tiles.count) / 3
-        let base = 8 - fulou * 2
-        var minShanten = base
+    // スーツ1種の (面子数, 搭子数, 雀頭あり) を表す軽量型
+    private struct SB: Hashable { var m, t: Int; var j: Bool }
 
-        let sum = { (d: [String: [Int]]) in d.values.flatMap { $0 }.reduce(0, +) }
-        for bc in combinations {
-            let mentsu = sum(bc.shunzi) + sum(bc.kezi)
-            let toitsu = sum(bc.toitsu)
-            let tatsu  = sum(bc.ryanmen) + sum(bc.penchan) + sum(bc.kanchan)
-
-            let cap = (4 - fulou) - mentsu
-            
-            // 雀頭なし: 対子はすべて搭子として計上
-            let s1 = base - 2 * mentsu - min(tatsu + toitsu, cap)
-            // 雀頭あり: 対子を1つ雀頭に充て、残りを搭子として計上
-            let s2 = toitsu > 0 ? base - 2 * mentsu - min(tatsu + toitsu - 1, cap) - 1 : s1
-            
-            minShanten = min(minShanten, min(s1, s2))
+    // 1スーツのカウント配列から SB の全組み合わせをバックトラックで列挙
+    private static func suitBlocks(_ counts: [Int], canSeq: Bool) -> [SB] {
+        var c = counts
+        var out = Set<SB>()
+        func bt(_ pos: Int, _ m: Int, _ t: Int, _ j: Bool) {
+            var p = pos
+            while p < c.count && c[p] == 0 { p += 1 }
+            guard p < c.count else { out.insert(SB(m: m, t: t, j: j)); return }
+            // 刻子
+            if c[p] >= 3 { c[p] -= 3; bt(p, m+1, t, j); c[p] += 3 }
+            // 順子
+            if canSeq && p+2 < c.count && c[p+1] > 0 && c[p+2] > 0 {
+                c[p] -= 1; c[p+1] -= 1; c[p+2] -= 1
+                bt(p, m+1, t, j)
+                c[p] += 1; c[p+1] += 1; c[p+2] += 1
+            }
+            // 対子 → 雀頭（まだ雀頭なし）
+            if c[p] >= 2 && !j { c[p] -= 2; bt(p, m, t, true); c[p] += 2 }
+            // 対子 → 搭子
+            if c[p] >= 2 { c[p] -= 2; bt(p, m, t+1, j); c[p] += 2 }
+            // 両面 / 辺張搭子
+            if canSeq && p+1 < c.count && c[p+1] > 0 {
+                c[p] -= 1; c[p+1] -= 1; bt(p, m, t+1, j); c[p] += 1; c[p+1] += 1
+            }
+            // 嵌張搭子
+            if canSeq && p+2 < c.count && c[p+2] > 0 {
+                c[p] -= 1; c[p+2] -= 1; bt(p, m, t+1, j); c[p] += 1; c[p+2] += 1
+            }
+            // 孤立牌（pos の残り全枚をスキップ）
+            let s = c[p]; c[p] = 0; bt(p, m, t, j); c[p] = s
         }
-        
-        return minShanten
+        bt(0, 0, 0, false)
+        return Array(out)
+    }
+
+    static func mianziXiangting(_ tiles: [String]) -> Int {
+        guard tiles.count >= 1 && (13 - tiles.count) % 3 == 0 else { return 99 }
+        let fulou = (13 - tiles.count) / 3
+        let base  = 8 - fulou * 2
+        let sc = tilesToSuitCounts(tiles)
+
+        // スーツごとに (面子, 搭子, 雀頭) の組み合わせを列挙
+        let mSet = suitBlocks(sc.m, canSeq: true)
+        let pSet = suitBlocks(sc.p, canSeq: true)
+        let sSet = suitBlocks(sc.s, canSeq: true)
+        let zSet = suitBlocks(sc.z, canSeq: false)
+
+        var best = base
+        for mc in mSet { for pc in pSet { for sc2 in sSet { for zc in zSet {
+            // 雀頭は全体で最大1つ
+            let jCount = (mc.j ? 1 : 0) + (pc.j ? 1 : 0) + (sc2.j ? 1 : 0) + (zc.j ? 1 : 0)
+            guard jCount <= 1 else { continue }
+            let mentsu = mc.m + pc.m + sc2.m + zc.m
+            let tatsu  = mc.t + pc.t + sc2.t + zc.t
+            let cap = (4 - fulou) - mentsu
+            let s1 = base - 2 * mentsu - min(tatsu, cap)
+            let s2 = jCount == 1 ? s1 - 1 : s1
+            best = min(best, min(s1, s2))
+        }}}}
+        return best
     }
     
     // 国士無双シャンテン数: 13 - 种類数 - 対子有無
@@ -289,6 +325,27 @@ struct Hule {
             if seen.insert(merged).inserted { results.append(merged) }
         }}}}
         
+        // 九蓮宝燈チェック（門前14枚のみ）
+        if fulouTiles.isEmpty && bingpaiTiles.count == 14 {
+            let uniqueSuits = Set(bingpaiTiles.compactMap { $0.first })
+            if uniqueSuits.count == 1, let suitChar = uniqueSuits.first, suitChar != "z" {
+                let suit = String(suitChar)
+                var suitCounts = Array(repeating: 0, count: 9)
+                for t in bingpaiTiles {
+                    guard let n = Int(String(t.last!)), n >= 1 && n <= 9 else { continue }
+                    suitCounts[n - 1] += 1
+                }
+                let base = [3, 1, 1, 1, 1, 1, 1, 1, 3]
+                if zip(suitCounts, base).allSatisfy({ $0.0 >= $0.1 }) {
+                    var bc = BlockCounts()
+                    for (i, cnt) in suitCounts.enumerated() where cnt > 0 {
+                        bc.isolated[suit]?[i] = cnt
+                    }
+                    if seen.insert(bc).inserted { results.append(bc) }
+                }
+            }
+        }
+
         // 国士無双チェック（門前14枚のみ）
         if fulouTiles.isEmpty && bingpaiTiles.count == 14 {
             let yaojiu = ["m1","m9","p1","p9","s1","s9","z1","z2","z3","z4","z5","z6","z7"]
@@ -564,9 +621,7 @@ extension Hule {
         _ decomposition: BlockCounts,
         context: HuleContext,
         fulouBC: BlockCounts = BlockCounts()
-    ) -> (
-        [Yaku]
-    ) {
+    ) -> [Yaku] {
         
         var yaku: [Yaku] = []
         func add(_ y: Yaku?) { if let y { yaku.append(y) } }
@@ -865,39 +920,104 @@ extension Hule {
     }
     
     private static func checkDaisangen(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // TODO: z5(白)/z6(發)/z7(中) がすべて刻子
-        return nil
+        guard let zKezi = decomposition.kezi["z"], let zGangzi = decomposition.gangzi["z"] else { return nil }
+        guard [4, 5, 6].allSatisfy({ i in i < zKezi.count && (zKezi[i] + zGangzi[i]) > 0 }) else { return nil }
+        return Yaku(name: "大三元", fanshu: Yaku.yakuman)
     }
-    
+
     private static func checkShousuushi(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // TODO: z1(東)/z2(南)/z3(西)/z4(北) のうち3種が刻子 + 1種が雀頭
-        return nil
+        guard let zKezi = decomposition.kezi["z"], let zGangzi = decomposition.gangzi["z"] else { return nil }
+        let windMentsu = (0..<4).filter { i in i < zKezi.count && (zKezi[i] + zGangzi[i]) > 0 }.count
+        let windJantai = ["z1","z2","z3","z4"].contains(decomposition.jantai)
+        guard windMentsu == 3 && windJantai else { return nil }
+        return Yaku(name: "小四喜", fanshu: Yaku.yakuman)
     }
-    
+
     private static func checkDaisuushi(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // ダブル役満
-        // TODO: z1(東)/z2(南)/z3(西)/z4(北) がすべて刻子
-        return nil
+        guard let zKezi = decomposition.kezi["z"], let zGangzi = decomposition.gangzi["z"] else { return nil }
+        guard (0..<4).allSatisfy({ i in i < zKezi.count && (zKezi[i] + zGangzi[i]) > 0 }) else { return nil }
+        return Yaku(name: "大四喜", fanshu: Yaku.doubleYakuman)
     }
-    
+
     private static func checkTsuuiisou(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // TODO: 全面子・雀頭が字牌（数牌が0枚）
-        return nil
+        for suit in ["m", "p", "s"] {
+            let total = (decomposition.shunzi[suit]?.reduce(0, +) ?? 0)
+                      + (decomposition.kezi[suit]?.reduce(0, +) ?? 0)
+                      + (decomposition.gangzi[suit]?.reduce(0, +) ?? 0)
+                      + (decomposition.toitsu[suit]?.reduce(0, +) ?? 0)
+                      + (decomposition.isolated[suit]?.reduce(0, +) ?? 0)
+            if total > 0 { return nil }
+        }
+        return Yaku(name: "字一色", fanshu: Yaku.yakuman)
     }
-    
+
     private static func checkRyuuiisou(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // TODO: 全牌が緑牌（s2,s3,s4,s6,s8,z6）のみで構成
-        return nil
+        // m/p があれば不成立
+        for suit in ["m", "p"] {
+            let total = (decomposition.shunzi[suit]?.reduce(0, +) ?? 0)
+                      + (decomposition.kezi[suit]?.reduce(0, +) ?? 0)
+                      + (decomposition.gangzi[suit]?.reduce(0, +) ?? 0)
+                      + (decomposition.toitsu[suit]?.reduce(0, +) ?? 0)
+                      + (decomposition.isolated[suit]?.reduce(0, +) ?? 0)
+            if total > 0 { return nil }
+        }
+        // s 順子は s234 (index 1) のみ許可
+        if let arr = decomposition.shunzi["s"] {
+            for (i, cnt) in arr.enumerated() where cnt > 0 { if i != 1 { return nil } }
+        }
+        // s 刻子・槓子・対子・孤立牌は s2,s3,s4,s6,s8 (index 1,2,3,5,7) のみ許可
+        let allowedS: Set<Int> = [1, 2, 3, 5, 7]
+        for arr in [decomposition.kezi["s"], decomposition.gangzi["s"], decomposition.toitsu["s"], decomposition.isolated["s"]] {
+            guard let arr else { continue }
+            for (i, cnt) in arr.enumerated() where cnt > 0 { if !allowedS.contains(i) { return nil } }
+        }
+        // z は 発 (z6, index 5) のみ許可
+        for arr in [decomposition.kezi["z"], decomposition.gangzi["z"], decomposition.toitsu["z"], decomposition.isolated["z"]] {
+            guard let arr else { continue }
+            for (i, cnt) in arr.enumerated() where cnt > 0 { if i != 5 { return nil } }
+        }
+        return Yaku(name: "緑一色", fanshu: Yaku.yakuman)
     }
-    
+
     private static func checkChinroutou(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // TODO: 全面子・雀頭が数牌の么九牌（m1,m9,p1,p9,s1,s9）のみ
-        return nil
+        // 字牌があれば不成立
+        let zTotal = (decomposition.kezi["z"]?.reduce(0, +) ?? 0)
+                   + (decomposition.gangzi["z"]?.reduce(0, +) ?? 0)
+                   + (decomposition.toitsu["z"]?.reduce(0, +) ?? 0)
+                   + (decomposition.isolated["z"]?.reduce(0, +) ?? 0)
+        if zTotal > 0 { return nil }
+        if decomposition.nShunzi > 0 { return nil }
+        // m/p/s は 1 (index 0) または 9 (index 8) のみ許可
+        let allowedIdx: Set<Int> = [0, 8]
+        for suit in ["m", "p", "s"] {
+            for arr in [decomposition.kezi[suit], decomposition.gangzi[suit], decomposition.toitsu[suit], decomposition.isolated[suit]] {
+                guard let arr else { continue }
+                for (i, cnt) in arr.enumerated() where cnt > 0 { if !allowedIdx.contains(i) { return nil } }
+            }
+        }
+        return Yaku(name: "清老頭", fanshu: Yaku.yakuman)
     }
-    
+
     private static func checkChuurenpoutou(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
-        // TODO: 1種の数牌で 1112345678999 + 同スートの1牌
-        return nil
+        guard ctx.menqian else { return nil }
+        // winningDecompositions が生成した isolated マーカーを識別（国士無双と同方式）
+        guard decomposition.nShunzi == 0 && decomposition.nKezi == 0 &&
+              decomposition.nGangzi == 0 && decomposition.nToitsu == 0 else { return nil }
+        guard (decomposition.isolated["z"]?.reduce(0, +) ?? 0) == 0 else { return nil }
+        let usedSuits = ["m", "p", "s"].filter { (decomposition.isolated[$0]?.reduce(0, +) ?? 0) > 0 }
+        guard usedSuits.count == 1, let suit = usedSuits.first else { return nil }
+        guard let counts = decomposition.isolated[suit] else { return nil }
+        let base = [3, 1, 1, 1, 1, 1, 1, 1, 3]
+        guard zip(counts, base).allSatisfy({ $0.0 >= $0.1 }) else { return nil }
+        // 純正: 和了牌を除いた13枚が基本形ちょうど
+        var remaining = counts
+        if let winSuit = ctx.winTile.first, String(winSuit) == suit,
+           let winN = Int(String(ctx.winTile.last!)), winN >= 1 && winN <= 9 {
+            remaining[winN - 1] -= 1
+        }
+        return remaining == base
+            ? Yaku(name: "純正九蓮宝燈", fanshu: Yaku.doubleYakuman)
+            : Yaku(name: "九蓮宝燈", fanshu: Yaku.yakuman)
     }
     
     private static func checkSuukantsu(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
@@ -969,8 +1089,63 @@ extension Hule {
         return num >= 5 || num == zhuangfeng.rawValue || num == menfeng.rawValue
     }
     
+    // MARK: - リーチ後暗槓フィルタ
+
+    // リーチ中に暗槓できる牌ラベルを riichiAnkanLevel に基づいて返す
+    // bingpaiLabels: リーチ中の13枚手牌（visibleLabels）
+    // gangziCandidates: shoupai.gangzi（手牌14枚中4枚揃い候補）
+    static func validAngangLabels(
+        bingpaiLabels: [String],
+        fulouTiles: [String],
+        gangziCandidates: [String],
+        level: GameSettings.RiichiAnkanLevel
+    ) -> [String] {
+        if level == .allForbidden { return [] }
+
+        let allLabels = (1...9).flatMap { n in ["m","p","s"].map { "\($0)\(n)" } }
+                      + (1...7).map { "z\($0)" }
+        let currentWaits = Set(allLabels.filter { xiangting(bingpaiLabels + [$0]) == -1 })
+
+        return gangziCandidates.filter { g in
+            let norm = Pai.normalize(g)
+            // bingpaiから3枚除いた10枚が新たな待ちの基準
+            var removed = 0
+            let remaining = bingpaiLabels.filter { t in
+                if removed < 3 && Pai.normalize(t) == norm { removed += 1; return false }
+                return true
+            }
+            let newWaits = Set(allLabels.filter { xiangting(remaining + [$0]) == -1 })
+            guard newWaits == currentWaits else { return false }
+
+            if level == .noChangeHand {
+                // 牌姿が変わらない: すべての和了形分解でgが必ず刻子になること
+                let suit = String(norm.prefix(1))
+                guard let n = Int(String(norm.last!)) else { return false }
+                let idx = n - 1
+                for w in currentWaits {
+                    let sorted = (bingpaiLabels + [w]).map { Pai.normalize($0) }.sorted()
+                    let decomps = winningDecompositions(sorted, fulouTiles)
+                    for decomp in decomps {
+                        // 順子に使われているか
+                        if suit != "z" {
+                            let shunzi = decomp.shunzi[suit] ?? []
+                            let inShunzi = (max(0, idx-2)...min(6, idx)).contains {
+                                $0 < shunzi.count && shunzi[$0] > 0
+                            }
+                            if inShunzi { return false }
+                        }
+                        // 雀頭に使われているか
+                        let toitsu = decomp.toitsu[suit] ?? []
+                        if idx < toitsu.count && toitsu[idx] > 0 { return false }
+                    }
+                }
+            }
+            return true
+        }
+    }
+
     // MARK: - 点数計算
-    
+
     // 符・役 → 点数変動を計算する
     // winnerIdx: 和了プレイヤー index, loserIdx: ロン放銃者(ツモ時nil), dealerIdx: 東家index
     static func computeDefen(
@@ -981,26 +1156,104 @@ extension Hule {
         loserIdx: Int?,
         dealerIdx: Int,
         honba: Int,
-        lizhibang: Int
+        lizhibang: Int,
+        yakumanFukugouAri: Bool = true,
+        doubleYakumanAri: Bool = true,
+        kazoeYakumanAri: Bool = true,
+        kiriageMangan: Bool = false,
+        paoPlayerIdx: Int? = nil
     ) -> DefenResult {
         guard !yaku.isEmpty else {
-            return DefenResult(defen: 0, fenpei: Array(repeating: 0, count: 4))
+            return DefenResult(defen: 0, fenpei: Array(repeating: 0, count: 4), effectiveFan: 0)
         }
-        
+
+        // ダブル役満なし: fanshu を役満上限に丸める
+        let adjustedYaku: [Yaku] = doubleYakumanAri ? yaku : yaku.map {
+            $0.fanshu >= Yaku.doubleYakuman ? Yaku(name: $0.name, fanshu: Yaku.yakuman) : $0
+        }
+        let rawFan        = adjustedYaku.reduce(0) { $0 + $1.fanshu }
+        let maxYakuFanshu = adjustedYaku.map(\.fanshu).max() ?? 0
+
+        // 役満の複合なし: 合計を最大単一役の翻数に制限
+        var effectiveFan = rawFan
+        if !yakumanFukugouAri && effectiveFan >= Yaku.yakuman {
+            effectiveFan = min(effectiveFan, maxYakuFanshu)
+        }
+        // 数え役満なし: 13翻以上の通常手は三倍満扱い
+        if !kazoeYakumanAri && effectiveFan >= 13 && effectiveFan < Yaku.yakuman {
+            effectiveFan = 12
+        }
+
         let isDealer = (winnerIdx == dealerIdx)
-        let totalFan = yaku.reduce(0) { $0 + $1.fanshu }
-        let table    = paymentTable(fu: fu, fan: totalFan)
-        
+        let table    = paymentTable(fu: fu, fan: effectiveFan, kiriageMangan: kiriageMangan)
+
+        // MARK: パオ（包）計算
+        if let paoIdx = paoPlayerIdx, effectiveFan >= Yaku.yakuman {
+            let paoTable  = paymentTable(fu: fu, fan: Yaku.yakuman) // 役満1つ分の基準額
+            var fenpei    = Array(repeating: 0, count: 4)
+            let defen: Int
+
+            if zimo {
+                // 責任払い: パオ者がロン相当額+積み場を全額負担し、残余翻数は通常ツモ精算
+                let paoRonAmt = isDealer ? paoTable[3] : paoTable[0]
+                let paoPayment = paoRonAmt + honba * 300
+
+                if effectiveFan <= Yaku.yakuman {
+                    // 役満ちょうど: パオ者のみ全額
+                    defen = paoPayment + lizhibang * 1000
+                    fenpei[winnerIdx] += defen
+                    fenpei[paoIdx]    -= paoPayment
+                } else {
+                    // ダブル役満以上: パオ者が役満1つ分+積み場を払い、残りは通常ツモ（積み場なし）
+                    let remainFan   = effectiveFan - Yaku.yakuman
+                    let remainTable = paymentTable(fu: fu, fan: remainFan)
+                    var remainDefen = 0
+                    if isDealer {
+                        let perChild = remainTable[4]
+                        remainDefen = perChild * 3
+                        for i in 0..<4 where i != winnerIdx { fenpei[i] -= perChild }
+                    } else {
+                        let forDealer = remainTable[1]
+                        let forChild  = remainTable[2]
+                        remainDefen = forDealer + forChild * 2
+                        for i in 0..<4 where i != winnerIdx {
+                            fenpei[i] -= (i == dealerIdx ? forDealer : forChild)
+                        }
+                    }
+                    fenpei[paoIdx] -= paoPayment
+                    defen = paoPayment + remainDefen + lizhibang * 1000
+                    fenpei[winnerIdx] += defen
+                }
+            } else {
+                // 折半払い: 放銃者とパオ者で均等割り。パオ者が積み場を負担
+                let ronAmt  = isDealer ? table[3] : table[0]
+                let half    = ronAmt / 2
+                let loser   = loserIdx!
+                defen = ronAmt + honba * 300 + lizhibang * 1000
+                fenpei[winnerIdx] += defen
+                if paoIdx == loser {
+                    // 放銃者＝パオ者: 全額+積み場
+                    fenpei[loser] -= ronAmt + honba * 300
+                } else {
+                    fenpei[loser]  -= half
+                    fenpei[paoIdx] -= (ronAmt - half) + honba * 300
+                }
+            }
+
+            return DefenResult(defen: defen, fenpei: fenpei, effectiveFan: effectiveFan)
+        }
+
+        // MARK: 通常計算
         // [子ロン, 子ツモ親払い, 子ツモ子払い, 親ロン, 親ツモ子払い]
         let koRon       = table[0]
         let koTsumoOya  = table[1]
         let koTsumoKo   = table[2]
         let oyaRon      = table[3]
         let oyaTsumoKo  = table[4]
-        
+
         var fenpei = Array(repeating: 0, count: 4)
         let defen: Int
-        
+
         if isDealer && !zimo {
             // ① 親のロンアガリ: 放銃者が oyaRon を払う
             let loser   = loserIdx!
@@ -1034,7 +1287,7 @@ extension Hule {
             }
         }
         
-        return DefenResult(defen: defen, fenpei: fenpei)
+        return DefenResult(defen: defen, fenpei: fenpei, effectiveFan: effectiveFan)
     }
     
     private static func ceil100(_ value: Int) -> Int {
@@ -1042,19 +1295,25 @@ extension Hule {
     }
     
     // [子ロン, 子ツモ親払い, 子ツモ子払い, 親ロン, 親ツモ子払い]
-    static func paymentTable(fu: Int, fan: Int) -> [Int] {
+    // fan には computeDefen で設定反映済みの有効翻数を渡す
+    static func paymentTable(fu: Int, fan: Int, kiriageMangan: Bool = false) -> [Int] {
         let fixedBase: Int? = {
+            // 切り上げ満貫: 基本点が7500以上8000未満なら満貫扱い
+            if kiriageMangan && fan >= 1 && fan < 5 {
+                let base = 32 * fu * (1 << (fan - 1))
+                if base >= 7500 && base < 8000 { return 8000 }
+            }
             switch fan {
-            case 5:         return 8000
-            case 6, 7:      return 12000
-            case 8, 9, 10:  return 16000
-            case 11, 12:    return 24000
-            case 13..<99:        return 32000
-            case 100..<999: return fan / 100 * 32000
+            case 5:       return 8000
+            case 6, 7:    return 12000
+            case 8, 9, 10: return 16000
+            case 11, 12:  return 24000
+            case 13..<99: return 32000
+            case 100...:  return fan / 100 * 32000
             default: return nil
             }
         }()
-        
+
         func pay(coefficient: Double, divisor: Double) -> Int {
             if let base = fixedBase {
                 return Int((Double(base) * coefficient / divisor).rounded())
@@ -1063,7 +1322,7 @@ extension Hule {
             let cap = Int((8000.0 * coefficient / divisor).rounded())
             return min(ceil100(raw), cap)
         }
-        
+
         return [
             pay(coefficient: 1.0, divisor: 1.0),  // 子ロン
             pay(coefficient: 1.0, divisor: 2.0),  // 子ツモ 親払い

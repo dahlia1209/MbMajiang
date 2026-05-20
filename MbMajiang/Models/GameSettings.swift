@@ -21,11 +21,11 @@ final class GameSettings {
     var kyokuCount: KyokuCount = .hanjouSen
     var tochukuryokuAri: Bool = true
     var nagashiManganAri: Bool = false
-    var notenSengenAri: Bool = false
+    var notenSengenAri: Bool = true
     var notenBatsuAri: Bool = true
     var dojiHuleMax: DojiHuleMax = .atamahane
-    var renzhuFang: RenzhuFang = .hule
-    var tobiEndAri: Bool = true
+    var renzhuFang: RenzhuFang = .tenpai
+    var tobiEndAri: Bool = false
     var orasudomeAri: Bool = false
     var enchossenFang: EnchossenFang = .suddenDeath
 
@@ -40,15 +40,16 @@ final class GameSettings {
 
     // MARK: - 表示
     var showHandDisplayOption: Bool = false
-    var dapaiAssist: Bool = true
-    var fulouAssist: Bool = true
+    var agariHaiDisplay: Bool = false
+    var dapaiAssist: Bool = false
+    var fulouAssist: Bool = false
 
     // MARK: - 役満
     var yakumanFukugouAri: Bool = true
-    var doubleYakumanAri: Bool = true
-    var kazoeYakumanAri: Bool = true
+    var doubleYakumanAri: Bool = false
+    var kazoeYakumanAri: Bool = false
     var yakumanPaoAri: Bool = true
-    var kiriageMangan: Bool = false
+    var kiriageMangan: Bool = true
 
     // MARK: - Computed
     var junkiten1: Int { -(junikitenRanks.reduce(0, +)) }
@@ -83,6 +84,7 @@ final class GameSettings {
         ud.set(noTsumoBanRiichiAri, forKey: "noTsumoBanRiichiAri")
         ud.set(riichiAnkanLevel.rawValue, forKey: "riichiAnkanLevel")
         ud.set(showHandDisplayOption, forKey: "showHandDisplayOption")
+        ud.set(agariHaiDisplay, forKey: "agariHaiDisplay")
         ud.set(dapaiAssist, forKey: "dapaiAssist")
         ud.set(fulouAssist, forKey: "fulouAssist")
         ud.set(yakumanFukugouAri, forKey: "yakumanFukugouAri")
@@ -126,6 +128,7 @@ final class GameSettings {
         s.noTsumoBanRiichiAri = ud.bool(forKey: "noTsumoBanRiichiAri")
         s.riichiAnkanLevel   = RiichiAnkanLevel(rawValue: ud.string(forKey: "riichiAnkanLevel") ?? "") ?? s.riichiAnkanLevel
         s.showHandDisplayOption = ud.bool(forKey: "showHandDisplayOption")
+        s.agariHaiDisplay    = ud.bool(forKey: "agariHaiDisplay")
         s.dapaiAssist        = ud.bool(forKey: "dapaiAssist")
         s.fulouAssist        = ud.bool(forKey: "fulouAssist")
         s.yakumanFukugouAri  = ud.bool(forKey: "yakumanFukugouAri")
@@ -180,5 +183,151 @@ final class GameSettings {
         case allForbidden    = "すべての暗槓不可"
         case noChangeHand    = "牌姿の変わる暗槓不可"
         case noChangeWaiting = "待ちの変わる暗槓不可"
+    }
+
+    // MARK: - Preset
+
+    enum Preset: String, CaseIterable, Hashable {
+        case tenhou  = "天鳳"
+        case mleague = "Mリーグ"
+        case custom  = "カスタム"
+    }
+
+    var currentPreset: Preset {
+        if matchesTenhou()  { return .tenhou }
+        if matchesMleague() { return .mleague }
+        return .custom
+    }
+
+    func applyPreset(_ preset: Preset) {
+        switch preset {
+        case .tenhou:  applyTenhou()
+        case .mleague: applyMleague()
+        case .custom:  break
+        }
+    }
+
+    private func applyMleague() {
+        haikyuGenten         = 25000
+        junikitenRanks       = [10, -10, -30]
+        junkitenRounding     = false
+        renpuFu              = .two
+        akadoraMan           = 1
+        akadoraPin           = 1
+        akadoraSou           = 1
+        kuitanAri            = true
+        kuichikaeLevel       = .none
+        kyokuCount           = .hanjouSen
+        tochukuryokuAri      = true
+        nagashiManganAri     = false
+        notenSengenAri       = true
+        notenBatsuAri        = true
+        dojiHuleMax          = .atamahane
+        renzhuFang           = .tenpai
+        tobiEndAri           = false
+        ippatsuAri           = true
+        uradoraAri           = true
+        kandoraAri           = true
+        kandoraNochigakeAri  = false
+        kanUraAri            = true
+        riichiAnkanLevel     = .noChangeWaiting
+        yakumanFukugouAri    = true
+        doubleYakumanAri     = false
+        kazoeYakumanAri      = false
+        yakumanPaoAri        = true
+        kiriageMangan        = true
+    }
+
+    private func matchesMleague() -> Bool {
+        return haikyuGenten        == 25000
+            && junikitenRanks      == [10, -10, -30]
+            && junkitenRounding    == false
+            && renpuFu             == .two
+            && akadoraMan          == 1
+            && akadoraPin          == 1
+            && akadoraSou          == 1
+            && kuitanAri           == true
+            && kuichikaeLevel      == .none
+            && kyokuCount          == .hanjouSen
+            && tochukuryokuAri     == true
+            && nagashiManganAri    == false
+            && notenSengenAri      == true
+            && notenBatsuAri       == true
+            && dojiHuleMax         == .atamahane
+            && renzhuFang          == .tenpai
+            && tobiEndAri          == false
+            && ippatsuAri          == true
+            && uradoraAri          == true
+            && kandoraAri          == true
+            && kandoraNochigakeAri == false
+            && kanUraAri           == true
+            && riichiAnkanLevel    == .noChangeWaiting
+            && yakumanFukugouAri   == true
+            && doubleYakumanAri    == false
+            && kazoeYakumanAri     == false
+            && yakumanPaoAri       == true
+            && kiriageMangan       == true
+    }
+
+    private func applyTenhou() {
+        haikyuGenten         = 25000
+        junikitenRanks       = [10, -10, -30]
+        junkitenRounding     = false
+        renpuFu              = .two
+        akadoraMan           = 1
+        akadoraPin           = 1
+        akadoraSou           = 1
+        kuitanAri            = true
+        kuichikaeLevel       = .none
+        kyokuCount           = .hanjouSen
+        tochukuryokuAri      = true
+        nagashiManganAri     = false
+        notenSengenAri       = false
+        notenBatsuAri        = true
+        dojiHuleMax          = .atamahane
+        renzhuFang           = .tenpai
+        tobiEndAri           = true
+        ippatsuAri           = true
+        uradoraAri           = true
+        kandoraAri           = true
+        kandoraNochigakeAri  = false
+        kanUraAri            = true
+        riichiAnkanLevel     = .noChangeWaiting
+        yakumanFukugouAri    = true
+        doubleYakumanAri     = true
+        kazoeYakumanAri      = true
+        yakumanPaoAri        = true
+        kiriageMangan        = false
+    }
+
+    private func matchesTenhou(doubleYakuman: Bool = true, kazoeYakuman: Bool = true, kiriage: Bool = false) -> Bool {
+        return haikyuGenten        == 25000
+            && junikitenRanks      == [10, -10, -30]
+            && junkitenRounding    == false
+            && renpuFu             == .two
+            && akadoraMan          == 1
+            && akadoraPin          == 1
+            && akadoraSou          == 1
+            && kuitanAri           == true
+            && kuichikaeLevel      == .none
+            && kyokuCount          == .hanjouSen
+            && tochukuryokuAri     == true
+            && nagashiManganAri    == false
+            && notenSengenAri      == false
+            && notenBatsuAri       == true
+            && dojiHuleMax         == .atamahane
+            && renzhuFang          == .tenpai
+            && tobiEndAri          == true
+            && ippatsuAri          == true
+            && uradoraAri          == true
+            && kandoraAri          == true
+            && kandoraNochigakeAri == false
+            && kanUraAri           == true
+            && riichiAnkanLevel    == .noChangeWaiting
+            && yakumanFukugouAri   == true
+            && doubleYakumanAri    == doubleYakuman
+            && kazoeYakumanAri     == kazoeYakuman
+            && yakumanPaoAri       == true
+            && kiriageMangan       == kiriage
     }
 }

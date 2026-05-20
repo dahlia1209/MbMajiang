@@ -596,4 +596,70 @@ struct GetYakuTests {
                                   libaopai: ["z1"])
         #expect(!has(result, "裏ドラ"))
     }
+
+    // MARK: - 副露の役牌
+
+    @Test("場風（東）をポン副露 → 場風あり")
+    func yakuhaiFulouBaFeng() {
+        let tiles = ["m1","m2","m3","p4","p5","p6","s7","s8","s9","m5","m5"]
+        let result = Hule.getYaku(tiles: tiles,
+                                  context: ctx(zhuangfeng: .東, menfeng: .南, menqian: false, winTile: "m5"),
+                                  fulouTiles: ["z111"])
+        #expect(result.yaku.contains { $0.name.contains("場風") })
+    }
+
+    @Test("自風（南）をポン副露 → 自風あり")
+    func yakuhaiFulouMenFeng() {
+        let tiles = ["m1","m2","m3","p4","p5","p6","s7","s8","s9","m5","m5"]
+        let result = Hule.getYaku(tiles: tiles,
+                                  context: ctx(zhuangfeng: .東, menfeng: .南, menqian: false, winTile: "m5"),
+                                  fulouTiles: ["z222"])
+        #expect(result.yaku.contains { $0.name.contains("自風") })
+    }
+
+    @Test("白をポン副露 → 白あり")
+    func yakuhaiFulouHaku() {
+        let tiles = ["m1","m2","m3","p4","p5","p6","s7","s8","s9","m5","m5"]
+        let result = Hule.getYaku(tiles: tiles,
+                                  context: ctx(menqian: false, winTile: "m5"),
+                                  fulouTiles: ["z555"])
+        #expect(has(result, "白"))
+        #expect(fan(result, "白") == 1)
+    }
+
+    @Test("發をポン副露 → 發あり")
+    func yakuhaiFulouHatsu() {
+        let tiles = ["m1","m2","m3","p4","p5","p6","s7","s8","s9","m5","m5"]
+        let result = Hule.getYaku(tiles: tiles,
+                                  context: ctx(menqian: false, winTile: "m5"),
+                                  fulouTiles: ["z666"])
+        #expect(has(result, "發"))
+    }
+
+    @Test("中をポン副露 → 中あり")
+    func yakuhaiFulouChun() {
+        let tiles = ["m1","m2","m3","p4","p5","p6","s7","s8","s9","m5","m5"]
+        let result = Hule.getYaku(tiles: tiles,
+                                  context: ctx(menqian: false, winTile: "m5"),
+                                  fulouTiles: ["z777"])
+        #expect(has(result, "中"))
+    }
+
+    @Test("非役牌（z3西）をポン副露 → 役なし")
+    func fulouNonYakuhai() {
+        let tiles = ["m1","m2","m3","p4","p5","p6","s7","s8","s9","m5","m5"]
+        let result = Hule.getYaku(tiles: tiles,
+                                  context: ctx(zhuangfeng: .東, menfeng: .南, menqian: false, winTile: "m5"),
+                                  fulouTiles: ["z333"])
+        #expect(result.yaku.isEmpty)
+    }
+
+    @Test("白を槓（明槓）副露 → 白あり")
+    func yakuhaiFulouMingkan() {
+        let tiles = ["m1","m2","m3","p4","p5","p6","s7","s8","s9","m5","m5"]
+        let result = Hule.getYaku(tiles: tiles,
+                                  context: ctx(menqian: false, winTile: "m5"),
+                                  fulouTiles: ["z5555-"])
+        #expect(has(result, "白"))
+    }
 }

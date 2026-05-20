@@ -37,7 +37,7 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         case .lizhi:  return "リーチ"
         case .rong:   return "ロン"
         case .zimo:     return "ツモ"
-        case .pingju:   return "流局"
+        case .pingju:   return "テンパイ"
         case .kyuushu:  return "九種九牌"
         }
     }

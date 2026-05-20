@@ -90,6 +90,34 @@ struct BoardView: View {
                 .scaleEffect(0.7)
                 .offset(y: 120)
             }
+            
+            // 待ち牌エリア（打牌アシスト有効時のみ）
+            if game.settings.agariHaiDisplay && !game.machiTiles.isEmpty {
+                VStack(spacing: 4) {
+                    if !game.machiFuritenSet.isEmpty {
+                        Text("フリテン")
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.orange)
+                    }
+                    HStack(spacing: 4) {
+                        ForEach(game.machiTiles, id: \.self) { tile in
+                            let hasYaku = game.machiYakuSet.contains(tile)
+                            VStack(spacing: 2) {
+                                PaiView(tile)
+                                Text(hasYaku ? "役有" : "役無")
+                                    .font(.system(size: 9, weight: .bold))
+                                    .foregroundColor(hasYaku ? .yellow : .white.opacity(0.4))
+                            }
+                        }
+                    }
+                }
+                .scaleEffect(1.4)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.black.opacity(0.75))
+                .cornerRadius(10)
+                .offset(y: 110)
+            }
 
             // infoMessage（フリテン・クイカエ等）
             if let message = game.infoMessage {
@@ -125,11 +153,19 @@ struct BoardView: View {
                 }
             }
         }
+        .onTapGesture {
+            game.pendingDapaiIndex = nil
+            game.machiTiles = []
+            game.machiYakuSet = []
+            game.machiFuritenSet = []
+        }
         // アクションバナー（ポンなど、ゲームを止めない）
         .overlay {
             if let imageName = game.actionBannerImage {
                 ActionBannerView(imageName: imageName)
                     .id(imageName)
+                    .rotationEffect(bannerRotation(for: game.actionBannerPlayer))
+                    .offset(bannerOffset(for: game.actionBannerPlayer))
                     .allowsHitTesting(false)
             }
         }
@@ -141,9 +177,32 @@ struct BoardView: View {
                 }
             }
         }
-        // 和了・流局ダイアログ
+        // 局開始カットイン
         .overlay {
-            if let result = game.huleResult {
+            if !game.roundCutInRoundNames.isEmpty {
+                RoundCutInView(
+                    roundImageNames: game.roundCutInRoundNames,
+                    honbaImageNames: game.roundCutInHonbaNames
+                ) {
+                    game.dismissRoundCutIn()
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        // ツモ・ロンカットイン
+        .overlay {
+            if let player = game.huleCutInPlayer, let imageName = game.huleCutInImageName {
+                HuleCutInView(imageName: imageName) {
+                    game.dismissHuleCutIn()
+                }
+                .rotationEffect(bannerRotation(for: player))
+                .offset(bannerOffset(for: player))
+                .allowsHitTesting(false)
+            }
+        }
+        // 和了・流局ダイアログ（カットイン終了後に表示）
+        .overlay {
+            if let result = game.huleResult, game.huleCutInPlayer == nil {
                 RoundResultView(result: result) {
                     game.dismissHuleResult()
                 }
@@ -157,8 +216,36 @@ struct BoardView: View {
                 }
             }
         }
+        .onChange(of: game.isSelectingDapai) { _, isSelecting in
+            if !isSelecting {
+                game.machiTiles = []
+                game.machiYakuSet = []
+                game.machiFuritenSet = []
+                game.pendingDapaiIndex = nil
+            }
+        }
         .onAppear {
             setupGame()
+        }
+    }
+
+    // MARK: - バナー位置
+    private func bannerOffset(for player: Int?) -> CGSize {
+        switch player {
+        case 0:  return CGSize(width:    0, height:  80)  // 自分（下）
+        case 1:  return CGSize(width:  220, height:   0)  // 下家（右）
+        case 2:  return CGSize(width:    0, height: -80)  // 対面（上）
+        case 3:  return CGSize(width: -220, height:   0)  // 上家（左）
+        default: return .zero
+        }
+    }
+
+    private func bannerRotation(for player: Int?) -> Angle {
+        switch player {
+        case 1:  return .degrees(-90)
+        case 2:  return .degrees(180)
+        case 3:  return .degrees(90)
+        default: return .zero
         }
     }
 
@@ -171,12 +258,40 @@ struct BoardView: View {
 }
 
 // MARK: - PlayerHandSection
-/// プレイヤー0の手牌エリア。pendingDapaiIndexをここに閉じ込めることで、
+/// プレイヤー0の手牌エリア。game.pendingDapaiIndexをここに閉じ込めることで、
 /// タップのたびにBoardView全体が再描画されるのを防ぐ。
 private struct PlayerHandSection: View {
     var game: Game
-    @State private var pendingDapaiIndex: Int? = nil
     @State private var cachedXiantingInfo: (count: Int, indices: Set<Int>) = (99, [])
+
+    private static let allTileLabels: [String] =
+        (1...9).flatMap { n in ["m\(n)", "p\(n)", "s\(n)"] } + (1...7).map { "z\($0)" }
+
+    private func computeMachiForDiscard(at index: Int) -> (tiles: [String], yakuSet: Set<String>, furitenSet: Set<String>) {
+        guard game.settings.agariHaiDisplay else { return ([], [], []) }
+        guard let human = game.humanPlayer else { return ([], [], []) }
+        let tiles = human.shoupai.normalizedAllLabels
+        guard tiles.indices.contains(index) else { return ([], [], []) }
+        let hand = tiles.indices.filter { $0 != index }.map { tiles[$0] }
+        guard Hule.xiangting(hand) == 0 else { return ([], [], []) }
+        let he = game.board.shan.he[0]
+        let riverLabels = Set((he.qipai + he.calledPai).map { Pai.normalize($0.label) })
+        let selectedLabel = Pai.normalize(tiles[index])
+        let furitenCheckLabels = riverLabels.union([selectedLabel])
+        var machiSet = Set<String>()
+        var yakuSet = Set<String>()
+        for tile in Self.allTileLabels {
+            let hand14 = (hand + [tile]).sorted()
+            if !Hule.winningDecompositions(hand14).isEmpty {
+                machiSet.insert(tile)
+                if game.checkMachiHasYaku(hand13: hand, winTile: tile) {
+                    yakuSet.insert(tile)
+                }
+            }
+        }
+        let furitenSet = machiSet.intersection(furitenCheckLabels)
+        return (tiles: Self.allTileLabels.filter { machiSet.contains($0) }, yakuSet: yakuSet, furitenSet: furitenSet)
+    }
 
     private var highlightedIndices: Set<Int>? {
         guard let human = game.humanPlayer else { return nil }
@@ -199,7 +314,7 @@ private struct PlayerHandSection: View {
                     .subtracting([selected[0]])
             }
         } else if human.status.isSelectingAngang {
-            let gangziLabels = Set(human.shoupai.gangzi)
+            let gangziLabels = human.status.validAngangLabels
             let normalized = human.shoupai.normalizedAllLabels
             return Set(normalized.indices.filter { gangziLabels.contains(normalized[$0]) })
         } else if human.status.isSelectingKagang {
@@ -234,14 +349,40 @@ private struct PlayerHandSection: View {
         } else if game.isSelectingKagang {
             return { game.humanPlayer?.selectKagang($0) }
         } else if game.isSelectingDapai {
-            if game.humanPlayer?.status.isSelectingRiichi == true || game.humanPlayer?.status.isLizhi == true {
-                // リーチ打牌 / リーチ中ツモ切り: 1タップで即打牌（リーチ中はツモ牌のみ受け付け）
+            if game.humanPlayer?.status.isLizhi == true {
+                // リーチ中ツモ切り: ツモ牌のみ2タップ方式
                 return { index in
-                    if game.humanPlayer?.status.isLizhi == true {
-                        guard index == game.humanPlayer?.shoupai.bingpai.count else { return }
+                    guard index == game.humanPlayer?.shoupai.bingpai.count else { return }
+                    if game.pendingDapaiIndex == index {
+                        game.humanPlayer?.selectDapai(index)
+                        game.pendingDapaiIndex = nil
+                        game.machiTiles = []
+                        game.machiYakuSet = []
+                        game.machiFuritenSet = []
+                    } else {
+                        game.pendingDapaiIndex = index
+                        let result = computeMachiForDiscard(at: index)
+                        game.machiTiles = result.tiles
+                        game.machiYakuSet = result.yakuSet
+                        game.machiFuritenSet = result.furitenSet
                     }
-                    game.humanPlayer?.selectDapai(index)
-                    pendingDapaiIndex = nil
+                }
+            } else if game.humanPlayer?.status.isSelectingRiichi == true {
+                // リーチ打牌選択: 2タップ方式（リーチ自体が役なので全待ち牌は役あり）
+                return { index in
+                    if game.pendingDapaiIndex == index {
+                        game.humanPlayer?.selectDapai(index)
+                        game.pendingDapaiIndex = nil
+                        game.machiTiles = []
+                        game.machiYakuSet = []
+                        game.machiFuritenSet = []
+                    } else {
+                        game.pendingDapaiIndex = index
+                        let result = computeMachiForDiscard(at: index)
+                        game.machiTiles = result.tiles
+                        game.machiYakuSet = Set(result.tiles)
+                        game.machiFuritenSet = result.furitenSet
+                    }
                 }
             } else {
                 return { index in
@@ -252,11 +393,18 @@ private struct PlayerHandSection: View {
                         game.infoMessage = "クイカエ"
                         return
                     }
-                    if pendingDapaiIndex == index {
+                    if game.pendingDapaiIndex == index {
                         game.humanPlayer?.selectDapai(index)
-                        pendingDapaiIndex = nil
+                        game.pendingDapaiIndex = nil
+                        game.machiTiles = []
+                        game.machiYakuSet = []
+                        game.machiFuritenSet = []
                     } else {
-                        pendingDapaiIndex = index
+                        game.pendingDapaiIndex = index
+                        let result = computeMachiForDiscard(at: index)
+                        game.machiTiles = result.tiles
+                        game.machiYakuSet = result.yakuSet
+                        game.machiFuritenSet = result.furitenSet
                     }
                 }
             }
@@ -300,7 +448,7 @@ private struct PlayerHandSection: View {
             onTapPai: onTapPaiHandler,
             highlightedIndices: highlightedIndices,
             selectedIndices: game.isSelectingDapai
-                ? (pendingDapaiIndex.map { [$0] } ?? [])
+                ? (game.pendingDapaiIndex.map { [$0] } ?? [])
                 : game.isSelectingChi
                     ? Set(game.humanPlayer?.status.selectedChiIndices   ?? [])
                     : Set(game.humanPlayer?.status.selectedPengIndices   ?? []) ,
@@ -326,7 +474,7 @@ private struct PlayerHandSection: View {
             if isSelecting {
                 cachedXiantingInfo = xiantingInfo
             } else {
-                pendingDapaiIndex = nil
+                game.pendingDapaiIndex = nil
                 cachedXiantingInfo = (99, [])
             }
         }
@@ -354,7 +502,8 @@ private struct PlayerHandSection: View {
     game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
     game.board.shan.shoupai[0].zimo = Pai("z5")
     game.status.zimo = "z5"
-    game.hule(player: 0, kind: .zimo)
+    game.status.player = 0
+    game.zimoHule()
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
@@ -367,7 +516,7 @@ private struct PlayerHandSection: View {
     game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
     game.status.player = 1   // 放銃者
     game.status.dapai = "z5"
-    game.hule(player: 0, kind: .rong)
+    game.ronHule([0])
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
@@ -378,26 +527,17 @@ private struct PlayerHandSection: View {
     game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
     game.board.shan.shoupai[0].zimo = Pai("z3")
     game.status.zimo = "z3"
-    game.hule(player: 0, kind: .zimo)
+    game.status.player = 0
+    game.zimoHule()
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
-#Preview("国士無双13面", traits: .landscapeLeft) {
-    let game = Game()
-    game.kaiju()
-    let bingpai = ["m1","m9","p1","p9","s1","s9","z1","z2","z3","z4","z5","z6","z7"]
-    game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
-    game.board.shan.shoupai[0].zimo = Pai("z5")
-    game.status.zimo = "z5"
-    game.hule(player: 0, kind: .zimo)
-    return BoardView(game: game, debugActions: [], autoStart: false)
-}
 
 #Preview("九蓮宝燈9面", traits: .landscapeLeft) {
     let game = Game()
     game.kaiju()
     game.debugHands = [
-        0: ["m1","m1","m2","m3","m4","m0","m5","m6","m7","m8","m9","m9","m9"],
+        0: ["m1","m1","m1","m2","m3","m4","m5","m6","m7","m8","m9","m9","m9"],
         1: ["m4","m6","m8","p1","p3","p5","s7","s8","s9","z2","z2","z5","z5"],
         2: ["m7","p4","p8","s2","s4","s6","z4","z6","z7","m2","p2","s1","m9"],
         3: ["m4","m7","m9","p6","p7","p9","s1","s3","s5","z7","z7","p9","p9"],
@@ -414,7 +554,7 @@ private struct PlayerHandSection: View {
     game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
     game.status.player = 1   // 放銃者
     game.status.dapai = "z3"
-    game.hule(player: 0, kind: .rong)
+    game.ronHule([0])
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
@@ -426,7 +566,7 @@ private struct PlayerHandSection: View {
     game.board.shan.shoupai[0].bingpai = bingpai.map { Pai($0) }
     game.status.player = 1   // 放銃者
     game.status.dapai = "m9"
-    game.hule(player: 0, kind: .rong)
+    game.ronHule([0])
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
@@ -441,7 +581,7 @@ private struct PlayerHandSection: View {
     game.players[0].status.isMenqian = false
     game.status.player = 2   // 放銃者
     game.status.dapai = "s7"
-    game.hule(player: 0, kind: .rong)
+    game.ronHule([0])
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
@@ -455,7 +595,7 @@ private struct PlayerHandSection: View {
     game.players[0].status.isMenqian = false
     game.status.player = 2   // 放銃者
     game.status.dapai = "s6"
-    game.hule(player: 0, kind: .rong)
+    game.ronHule([0])
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 
@@ -468,7 +608,21 @@ private struct PlayerHandSection: View {
         2: ["m7","p4","p8","s2","s4","s6","z4","z6","z7","m2","p2","s1","m9"],
         3: ["m1","m3","m5","p6","p7","p9","s1","s3","s5","z7","z7","p9","p9"],
     ]
-    
+    game.settings.kiriageMangan=true
+    game.settings.dapaiAssist=true
+    return BoardView(game: game, debugActions: [], autoStart: false)
+}
+
+#Preview("四暗刻", traits: .landscapeLeft) {
+    let game = Game()
+    game.kaiju()
+    game.debugHands = [
+        0: ["m1","m1","m1","m9","m9","m9","s9","s9","s9","z1","z1","z1","z3"],
+        1: ["m4","m6","m8","p1","p3","p5","s7","s8","s9","z2","z2","z5","z5"],
+        2: ["m7","p4","p8","s2","s4","s6","z4","z6","z7","m2","p2","s1","m9"],
+        3: ["m1","m3","m5","p6","p7","p9","s1","s3","s5","z7","z7","p9","p9"],
+    ]
+    game.settings.doubleYakumanAri=false
     return BoardView(game: game, debugActions: [], autoStart: false)
 }
 

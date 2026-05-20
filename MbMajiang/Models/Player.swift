@@ -7,15 +7,6 @@
 
 import Foundation
 
-// MARK: - Perf logging
-private func t() -> Double { Date().timeIntervalSince1970 * 1000 }
-private func perfLog(_ label: String, _ start: Double, extra: String = "") {
-    let dt = t() - start
-    if dt >= 0.5 {
-        print(String(format: "[PERF] %@ %.2fms%@", label, dt, extra.isEmpty ? "" : " | \(extra)"))
-    }
-}
-
 // MARK: - Player
 @Observable
 class Player {
@@ -41,6 +32,8 @@ class Player {
         case .zimo:   onZimo(status)
         case .dapai:  onDapai(status)
         case .fulou:  onFulou(status)
+        case .kagang: onKagang(status)
+        case .pingju: onPingju(status)
         default:      break
         }
     }
@@ -56,63 +49,59 @@ class Player {
     
     func onZimo(_ status: GameStatus) {
         if self.id == status.player {
-            let _tOnZimo = t()
             self.status.forbiddenDapaiLabels = []
+            var buttons: Set<PlayerButtonAction> = []
+
             if self.status.isLizhi {
-                // リーチ中: ツモ和了できる場合のみボタン表示、それ以外は自動ツモ切り
+                // リーチ中: ツモ和了できる場合のみボタン表示
                 let tiles = self.shoupai.allLabels
-                let _t1 = t(); let _ = hasYaku(tiles: tiles, isZimo: true, status: status)
-                perfLog("p\(id).hasYaku(lizhi-zimo)", _t1)
                 if hasYaku(tiles: tiles, isZimo: true, status: status) {
-                    self.status.availableButtonActions = [.zimo]
+                    buttons.insert(.zimo)
                 }
-
-
-                if self.status.availableButtonActions.isEmpty{
-                    // ボタンなし → processPlayerActions がツモ切りを実行
-                    self.status.decision = .dapai
-                    self.status.selectedIdx = self.shoupai.bingpai.count
-                    self.status.availableButtonActions = []
-                }
-
-
             } else {
-                var buttons: Set<PlayerButtonAction> = []
                 let tiles = self.shoupai.allLabels
-                let _t2 = t()
                 if hasYaku(tiles: tiles, isZimo: true, status: status) {
                     buttons.insert(.zimo)
                     buttons.insert(.cancel)
                 }
-                perfLog("p\(id).hasYaku(zimo)", _t2)
                 // 門前テンパイなら .lizhi を表示
-                if status.paishu >= 4 {
-                    let _t3 = t()
-                    let canRiichi = canDeclareRiichi()
-                    perfLog("p\(id).canDeclareRiichi", _t3, extra: "-> \(canRiichi)")
-                    if canRiichi {
-                        let _t4 = t()
-                        self.status.lizhiCandidateIndices = lizhiCandidateIndices()
-                        perfLog("p\(id).lizhiCandidateIndices", _t4)
-                        buttons.insert(.lizhi)
-                        if buttons.isEmpty { buttons.insert(.cancel) }
-                    }
+                if status.paishu >= 4 && canDeclareRiichi() {
+                    self.status.lizhiCandidateIndices = lizhiCandidateIndices()
+                    buttons.insert(.lizhi)
                 }
                 // 九種九牌
                 if isKyuushuCondition() {
                     buttons.insert(.kyuushu)
                 }
-                self.status.availableButtonActions = buttons
             }
-            perfLog("p\(id).onZimo total", _tOnZimo, extra: "turn=\(he.qipai.count)")
-            
-            //暗カン
-            if status.paishu >= 1 && (!shoupai.gangzi.isEmpty) {
-                self.status.availableButtonActions = [.angang]
+
+            // 暗カン（リーチ中はriichiAnkanLevelでフィルタ）
+            let angangCandidates: Set<String>
+            if self.status.isLizhi {
+                angangCandidates = Set(Hule.validAngangLabels(
+                    bingpaiLabels: shoupai.visibleLabels,
+                    fulouTiles: shoupai.fulouTiles,
+                    gangziCandidates: shoupai.gangzi,
+                    level: status.riichiAnkanLevel
+                ))
+            } else {
+                angangCandidates = Set(shoupai.gangzi)
             }
-            //加カン
-            if status.paishu >= 1 && (!shoupai.kagangzi.isEmpty) {
-                self.status.availableButtonActions = [.kagang]
+            self.status.validAngangLabels = angangCandidates
+            if status.paishu >= 1 && !angangCandidates.isEmpty {
+                buttons.insert(.angang)
+            }
+            // 加カン
+            if status.paishu >= 1 && !shoupai.kagangzi.isEmpty {
+                buttons.insert(.kagang)
+            }
+
+            self.status.availableButtonActions = buttons
+
+            // リーチ中でボタンなし → 自動ツモ切り
+            if self.status.isLizhi && buttons.isEmpty {
+                self.status.decision = .dapai
+                self.status.selectedIdx = self.shoupai.bingpai.count
             }
 
             self.status.isFirstDraw = false
@@ -236,7 +225,39 @@ class Player {
         // 副露したプレイヤー（player 0）は UI タップで打牌するため action は none のまま
         self.status.decision = .none
     }
-    
+
+    func onKagang(_ status: GameStatus) {
+        guard self.id != status.player, let label = status.dapai else {
+            self.status.availableButtonActions = []
+            self.status.decision = .none
+            return
+        }
+        let tiles = self.shoupai.visibleLabels + [label]
+        if hasYaku(tiles: tiles, isZimo: false, dapai: label, status: status) {
+            self.status.availableButtonActions = [.rong, .cancel]
+            self.status.decision = .none
+        } else {
+            self.status.availableButtonActions = []
+            self.status.decision = .none
+        }
+    }
+
+    func onPingju(_ status: GameStatus) {
+        guard status.notenSengenAri && !self.status.isLizhi else {
+            self.status.availableButtonActions = []
+            self.status.decision = .pingju
+            return
+        }
+        let isTenpai = Hule.xiangting(shoupai.visibleLabels.map { Pai.normalize($0) }) == 0
+        if isTenpai {
+            self.status.availableButtonActions = [.pingju, .noten]
+            self.status.decision = .none
+        } else {
+            self.status.availableButtonActions = []
+            self.status.decision = .pingju
+        }
+    }
+
     func peng(dapai: Pai, tajia: Jia,
               kuichikaeLevel: GameSettings.KuichikaeLevel = .none) {
           let selected: [Int]
@@ -378,7 +399,7 @@ class Player {
             lizhi: self.status.isLizhi,
             daburi: false,
             yifa: false,
-            qianggang: false,
+            qianggang: !isZimo && status.phase == .kagang,
             lingshang: false,
             haidi: false,
             hedi: false,
@@ -390,17 +411,14 @@ class Player {
     }
     
     func isFuriten(afterLizhiDiscards:[String]=[],junDiscards:[String]=[]) -> Bool {
-        let _t0 = t()
         let currentTiles = shoupai.visibleLabels.map { Pai.normalize($0) }
         let target = Set(he.qipai.map { $0.normalized } + afterLizhiDiscards + junDiscards)
         //捨て牌にアガリ牌が含まれていないか確認
-        let result = target.contains { label in
+        return target.contains { label in
             let allTiles = currentTiles + [label]
             guard allTiles.count >= 2 && (allTiles.count - 2) % 3 == 0 else { return false }
             return !Hule.winningDecompositions(allTiles).isEmpty
         }
-        perfLog("p\(id).isFuriten", _t0, extra: "discard=\(he.qipai.count) unique=\(target.count) -> \(result)")
-        return result
     }
     
     func isKyuushuCondition() -> Bool {
@@ -604,6 +622,27 @@ class AIPlayer: Player {
         }
     }
     
+    override func onKagang(_ status: GameStatus) {
+        guard !isCurrentId(status.player), let label = status.dapai else {
+            self.status.decision = .none
+            return
+        }
+        let tiles = self.shoupai.visibleLabels + [label]
+        if hasYaku(tiles: tiles, isZimo: false, dapai: label, status: status) &&
+           !isFuriten(
+               afterLizhiDiscards: status.afterLizhiDiscards[self.id],
+               junDiscards: status.junDiscards[self.id]
+           ) {
+            self.status.decision = .hule
+        } else {
+            self.status.decision = .none
+        }
+    }
+
+    override func onPingju(_ status: GameStatus) {
+        self.status.decision = .pingju
+    }
+
     override func onFulou(_ status: GameStatus) {
         self.status.availableButtonActions = []
         if isCurrentId(status.player) {
@@ -616,7 +655,6 @@ class AIPlayer: Player {
     
     // シャンテン数が最小になる牌を選んで打牌する
     func selectDapai() {
-        let _t0 = t()
         // bingpai(13枚) + zimo(1枚) の計14枚を正規化したラベル配列を作る
         let bingpai = shoupai.bingpai.filter { !$0.hidden }
         var allLabels = bingpai.map { $0.normalized }
@@ -647,7 +685,6 @@ class AIPlayer: Player {
 
         self.status.decision = .dapai
         self.status.selectedIdx = bestIdx
-        perfLog("p\(id).selectDapai", _t0, extra: "shanten=\(bestShanten) turn=\(he.qipai.count)")
     }
     
     func isCurrentId(_ currentPlayer: Int) -> Bool {
@@ -690,4 +727,7 @@ struct PlayerStatus {
     var forbiddenDapaiLabels: Set<String> = []
     var isFirstDraw: Bool = true
     var firstDapai: String? = nil
+    var paoPlayerIdx: Int? = nil        // パオ責任者インデックス（大三元・大四喜・四槓子）
+    var isDaburi: Bool = false          // ダブル立直フラグ
+    var validAngangLabels: Set<String> = []  // リーチ後の暗槓可能牌ラベル
 }

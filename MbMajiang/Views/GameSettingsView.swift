@@ -4,6 +4,7 @@ struct GameSettingsView: View {
     @Environment(GameSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
     @State private var startedGame: Game? = nil
+    @State private var isLocked = false
 
     private let gold      = Color(red: 0.8, green: 0.6, blue: 0.2)
     private let goldLight = Color(red: 1.0, green: 0.92, blue: 0.6)
@@ -23,59 +24,82 @@ struct GameSettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
 
-                        sectionHeader("点数設定")
-                        numberRow("配給原点",
-                            value: Binding(get: { settings.haikyuGenten },
-                                           set: { settings.haikyuGenten = $0 }))
-                        junikitenRow
-                        radioRow("連風牌", selection: Bindable(settings).renpuFu)
-
-                        groupDivider
-
-                        sectionHeader("牌設定")
-                        akadoraRow
-                        boolRow("クイタン", isOn: Bindable(settings).kuitanAri)
-                        radioRow("喰い替え", selection: Bindable(settings).kuichikaeLevel)
-
-                        groupDivider
-
-                        sectionHeader("進行設定")
-                        radioRow("場数", selection: Bindable(settings).kyokuCount)
-                        boolRow("途中流局", isOn: Bindable(settings).tochukuryokuAri)
-                        boolRow("流し満貫", isOn: Bindable(settings).nagashiManganAri)
-                        boolRow("ノーテン宣言", isOn: Bindable(settings).notenSengenAri)
-                        boolRow("ノーテン罰", isOn: Bindable(settings).notenBatsuAri)
-                        radioRow("同時和了", selection: Bindable(settings).dojiHuleMax)
-                        radioRow("連荘方式", selection: Bindable(settings).renzhuFang)
-                        boolRow("トビ終了", isOn: Bindable(settings).tobiEndAri)
-                        boolRow("オーラス止め", isOn: Bindable(settings).orasudomeAri)
-                        radioRow("延長戦方式", selection: Bindable(settings).enchossenFang)
-
-                        groupDivider
-
-                        sectionHeader("立直・ドラ")
-                        boolRow("一発", isOn: Bindable(settings).ippatsuAri)
-                        boolRow("裏ドラ", isOn: Bindable(settings).uradoraAri)
-                        kandoraRow
-                        boolRow("カン裏", isOn: Bindable(settings).kanUraAri)
-                        boolRow("ツモ番なしリーチ", isOn: Bindable(settings).noTsumoBanRiichiAri)
-                        radioRow("リーチ後の暗槓", selection: Bindable(settings).riichiAnkanLevel)
-
-                        groupDivider
-
                         sectionHeader("表示設定")
-                        boolRow("手牌表示オプション", isOn: Bindable(settings).showHandDisplayOption)
+                        boolRow("アガリ牌表示", isOn: Bindable(settings).agariHaiDisplay)
                         boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
                         boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)
+                        boolRow("手牌表示オプション", isOn: Bindable(settings).showHandDisplayOption)
 
                         groupDivider
 
-                        sectionHeader("役満")
-                        boolRow("役満の複合", isOn: Bindable(settings).yakumanFukugouAri)
-                        boolRow("ダブル役満", isOn: Bindable(settings).doubleYakumanAri)
-                        boolRow("数え役満", isOn: Bindable(settings).kazoeYakumanAri)
-                        boolRow("役満パオ", isOn: Bindable(settings).yakumanPaoAri)
-                        boolRow("切り上げ満貫", isOn: Bindable(settings).kiriageMangan)
+                        sectionHeader("プリセット")
+                        presetRow
+
+                        groupDivider
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            sectionHeader("点数設定")
+                            numberRow("配給原点",
+                                value: Binding(get: { settings.haikyuGenten },
+                                               set: { settings.haikyuGenten = $0 }))
+                            junikitenRow
+                            radioRow("連風牌", selection: Bindable(settings).renpuFu)
+                        }
+                        .disabled(isLocked)
+                        .opacity(isLocked ? 0.4 : 1)
+
+                        groupDivider
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            sectionHeader("牌設定")
+                            akadoraRow
+                            boolRow("クイタン", isOn: Bindable(settings).kuitanAri)
+                            radioRow("喰い替え", selection: Bindable(settings).kuichikaeLevel)
+                        }
+                        .disabled(isLocked)
+                        .opacity(isLocked ? 0.4 : 1)
+
+                        groupDivider
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            sectionHeader("進行設定")
+                            radioRow("場数", selection: Bindable(settings).kyokuCount)
+                            boolRow("途中流局", isOn: Bindable(settings).tochukuryokuAri)
+                            boolRow("流し満貫", isOn: Bindable(settings).nagashiManganAri)
+                            boolRow("ノーテン宣言", isOn: Bindable(settings).notenSengenAri)
+                            boolRow("ノーテン罰", isOn: Bindable(settings).notenBatsuAri)
+                            radioRow("同時和了", selection: Bindable(settings).dojiHuleMax)
+                            radioRow("連荘方式", selection: Bindable(settings).renzhuFang)
+                            boolRow("トビ終了", isOn: Bindable(settings).tobiEndAri)
+                        }
+                        .disabled(isLocked)
+                        .opacity(isLocked ? 0.4 : 1)
+
+                        groupDivider
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            sectionHeader("立直・ドラ")
+                            boolRow("一発", isOn: Bindable(settings).ippatsuAri)
+                            boolRow("裏ドラ", isOn: Bindable(settings).uradoraAri)
+                            kandoraRow
+                            boolRow("カン裏", isOn: Bindable(settings).kanUraAri)
+                            radioRow("リーチ後の暗槓", selection: Bindable(settings).riichiAnkanLevel)
+                        }
+                        .disabled(isLocked)
+                        .opacity(isLocked ? 0.4 : 1)
+
+                        groupDivider
+
+                        VStack(alignment: .leading, spacing: 16) {
+                            sectionHeader("役満")
+                            boolRow("役満の複合", isOn: Bindable(settings).yakumanFukugouAri)
+                            boolRow("ダブル役満", isOn: Bindable(settings).doubleYakumanAri)
+                            boolRow("数え役満", isOn: Bindable(settings).kazoeYakumanAri)
+                            boolRow("役満パオ", isOn: Bindable(settings).yakumanPaoAri)
+                            boolRow("切り上げ満貫", isOn: Bindable(settings).kiriageMangan)
+                        }
+                        .disabled(isLocked)
+                        .opacity(isLocked ? 0.4 : 1)
                     }
                     .padding(.horizontal, 60)
                     .padding(.top, 20)
@@ -87,6 +111,7 @@ struct GameSettingsView: View {
         .fullScreenCover(item: $startedGame) { game in
             BoardView(game: game, debugActions: [])
         }
+        .onAppear { isLocked = settings.currentPreset != .custom }
         .onDisappear { settings.save() }
         .transaction { $0.disablesAnimations = true }
     }
@@ -189,6 +214,42 @@ struct GameSettingsView: View {
 
     // MARK: - Special Rows
 
+    private var presetRow: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            rowLabel("ルール")
+            HStack(spacing: 14) {
+                ForEach(GameSettings.Preset.allCases, id: \.self) { preset in
+                    let isCustom   = preset == .custom
+                    let isSelected = isCustom ? !isLocked : (isLocked && settings.currentPreset == preset)
+                    Button {
+                        if isCustom {
+                            isLocked = false
+                        } else {
+                            settings.applyPreset(preset)
+                            isLocked = true
+                        }
+                    } label: {
+                        Text(preset.rawValue)
+                            .font(.system(size: 13, weight: isSelected ? .bold : .regular))
+                            .foregroundStyle(isSelected ? goldLight : goldLight.opacity(0.45))
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 5)
+                            .background(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .fill(isSelected ? gold.opacity(0.25) : Color.clear)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(isSelected ? gold.opacity(0.6) : gold.opacity(0.2), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            Spacer()
+        }
+    }
+
     private var junikitenRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline, spacing: 12) {
@@ -236,10 +297,10 @@ struct GameSettingsView: View {
                 radioButton("なし", selected: !settings.kandoraAri) { settings.kandoraAri = false }
                 radioButton("あり", selected:  settings.kandoraAri) { settings.kandoraAri = true  }
             }
-            HStack(spacing: 6) {
-                Color.clear.frame(width: labelW + 12)
-                checkboxButton("後乗せ", isOn: Bindable(settings).kandoraNochigakeAri)
-            }
+//            HStack(spacing: 6) {
+//                Color.clear.frame(width: labelW + 12)
+//                checkboxButton("後乗せ", isOn: Bindable(settings).kandoraNochigakeAri)
+//            }
         }
     }
 

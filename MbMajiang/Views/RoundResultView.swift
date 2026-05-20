@@ -11,6 +11,42 @@ struct RoundResultView: View {
     let result: HuleResult
     let onDismiss: () -> Void
 
+    @State private var revealedCount: Int = 0
+
+    private static let yakuSoundMap: [String: String] = [
+        "門前清自摸和": "zimo",
+        "立直":        "lizhi",
+        "ダブル立直":  "dabuli",
+        "一発":        "yifa",
+        "平和":        "pinfu",
+        "断么九":        "tanyao",
+        "一盃口":        "yipeko",
+        "白":        "haku",
+        "發":        "hatsu",
+        "中":        "chun",
+        "槍槓":        "changang",
+        "嶺上開花":        "linshankaiho",
+        "海底摸月":        "haitei",
+        "河底撈魚":        "houtei",
+        "一気通貫":        "ittsu",
+        "三色同順":        "sansyoku",
+        "三色同刻":        "douko",
+        "七対子":        "chitoitsu",
+        "対対和":        "toitoi",
+        "三暗刻":        "sananke",
+        "三槓子":        "sanganzi",
+        "小三元":        "shousangen",
+        "混老頭":        "honro",
+        "二盃口":        "ryanpeko",
+        "混一色":        "honitsu",
+        "混全帯么九":        "chanta",
+        "純全帯么九":        "junchan",
+        "清一色":        "chinitsu",
+        "天和":        "tenho",
+        "地和":        "chiho",
+        "国士無双":        "kokushi",
+        "国士無双十三面待ち":        "kokushi13men",
+    ]
 
     var body: some View {
         ZStack {
@@ -51,6 +87,7 @@ struct RoundResultView: View {
                 RoundedRectangle(cornerRadius: 12)
                     .stroke(Color.white.opacity(0.15), lineWidth: 1)
             )
+            .onAppear { startYakuAnnouncement() }
 
             // 次局へボタン（右下）
             VStack {
@@ -138,23 +175,23 @@ struct RoundResultView: View {
                     .font(.system(size: 13))
                     .foregroundColor(.gray.opacity(0.6))
             } else if result.hupai.count >= 5 {
-                // 5役以上: 1列4つで2列に分割
                 HStack(alignment: .top, spacing: 24) {
-                    hupaiGrid(Array(result.hupai.prefix(4)))
-                    hupaiGrid(Array(result.hupai.dropFirst(4).prefix(4)))
+                    hupaiGrid(Array(result.hupai.prefix(4)), offset: 0)
+                    hupaiGrid(Array(result.hupai.dropFirst(4).prefix(4)), offset: 4)
                 }
             } else {
-                hupaiGrid(result.hupai)
+                hupaiGrid(result.hupai, offset: 0)
             }
 
-            // 得点行
             Text(scoreLabel)
                 .font(.system(size: 14, weight: .bold))
                 .foregroundColor(.white)
+                .opacity(revealedCount >= result.hupai.count ? 1 : 0)
+                .animation(.easeOut(duration: 0.3), value: revealedCount)
         }
     }
 
-    private func hupaiGrid(_ hupai: [(name: String, fan: Int)]) -> some View {
+    private func hupaiGrid(_ hupai: [(name: String, fan: Int)], offset: Int) -> some View {
         Grid(horizontalSpacing: 16, verticalSpacing: 4) {
             ForEach(hupai.indices, id: \.self) { i in
                 GridRow {
@@ -177,32 +214,105 @@ struct RoundResultView: View {
                             .gridColumnAlignment(.trailing)
                     }
                 }
+                .opacity(offset + i < revealedCount ? 1 : 0)
+                .animation(.easeOut(duration: 0.2), value: revealedCount)
             }
         }
     }
 
+    // MARK: - 役アナウンス
+    private func soundName(for yaku: (name: String, fan: Int)) -> String? {
+        switch yaku.name {
+        case "ドラ":   return "dora\(min(yaku.fan, 6))"
+        case "裏ドラ": return "ura\(min(yaku.fan, 6))"
+        default:
+            if yaku.name.hasPrefix("連風牌") {
+                if yaku.name.contains("（東）") { return "dabuton" }
+                if yaku.name.contains("（南）") { return "dabunan" }
+            }
+            if yaku.name.contains("（東）") { return "tong" }
+            if yaku.name.contains("（南）") { return "nan" }
+            if yaku.name.contains("（西）") { return "xia" }
+            if yaku.name.contains("（北）") { return "pei" }
+            return Self.yakuSoundMap[yaku.name]
+        }
+    }
+
+    private var levelSoundName: String? {
+        let manganBase = isDealer ? 12000 : 8000
+        let isMangan = result.points == manganBase || result.totalFan == 5
+        if isMangan                                            { return "mangan" }
+        if result.totalFan >= 6  && result.totalFan <= 7      { return "haneman" }
+        if result.totalFan >= 8  && result.totalFan <= 10     { return "baiman" }
+        if result.totalFan >= 11 && result.totalFan <= 12     { return "sanbaiman" }
+        if result.totalFan >= 13 && result.totalFan < 100     { return "yakuman" }
+        if result.totalFan >= 100 {
+            switch result.totalFan / 100 {
+            case 1:      return "yakuman"
+            case 2:      return "daburuyakuman"
+            default:     return "tripleyakuman"
+            }
+        }
+        return nil
+    }
+
+    private func startYakuAnnouncement() {
+        guard !result.kind.isPingju else {
+            revealedCount = result.hupai.count
+            return
+        }
+        var offset: TimeInterval = 0
+        for i in result.hupai.indices {
+            let sound = soundName(for: result.hupai[i])
+            let d = offset
+            DispatchQueue.main.asyncAfter(deadline: .now() + d) {
+                revealedCount = i + 1
+                if let sound {
+                    SoundManager.shared.play(sound)
+                }
+            }
+            let dur = sound.map { SoundManager.shared.duration(for: $0) } ?? 0
+            offset += max(dur, 0.4) + 0.15
+        }
+        if let levelSound = levelSoundName {
+            DispatchQueue.main.asyncAfter(deadline: .now() + offset) {
+                SoundManager.shared.play(levelSound)
+            }
+        }
+    }
+
+    private var isDealer: Bool {
+        guard let idx = result.hulePlayer, result.afterScores.indices.contains(idx) else { return false }
+        return result.afterScores[idx].feng == .東
+    }
+
     private var scoreLabel: String {
         var parts: [String] = []
-        if result.fu > 0 &&  result.totalFan <= 4     { parts.append("\(result.fu)符") }
-        if result.totalFan > 0 && result.totalFan <= 4 { parts.append("\(result.totalFan)翻") }
-        else if result.totalFan == 5 { parts.append("満貫") }
-        else if result.totalFan >= 6 && result.totalFan <= 7 { parts.append("跳満") }
-        else if result.totalFan >= 8 && result.totalFan <= 10 { parts.append("倍満") }
+        let manganBase = isDealer ? 12000 : 8000
+        let isMangan = result.points == manganBase || result.totalFan == 5
+
+        if !isMangan && result.fu > 0 && result.totalFan <= 4 { parts.append("\(result.fu)符") }
+        if !isMangan && result.totalFan > 0 && result.totalFan <= 4 { parts.append("\(result.totalFan)翻") }
+
+        if isMangan                                             { parts.append("満貫") }
+        else if result.totalFan >= 6  && result.totalFan <= 7  { parts.append("跳満") }
+        else if result.totalFan >= 8  && result.totalFan <= 10 { parts.append("倍満") }
         else if result.totalFan >= 11 && result.totalFan <= 12 { parts.append("三倍満") }
         else if result.totalFan >= 13 && result.totalFan <= 99 { parts.append("数え役満") }
         else if result.totalFan >= 100 {
             let weight = result.totalFan / 100
-            let label:String
-            switch weight{
-            case 1 : label = "役満"
-            case 2 : label = "ダブル役満"
-            case 3 : label = "三倍役満"
-            case 4 : label = "四倍役満"
+            let label: String
+            switch weight {
+            case 1:  label = "役満"
+            case 2:  label = "ダブル役満"
+            case 3:  label = "三倍役満"
+            case 4:  label = "四倍役満"
             default: label = "役満"
             }
-            parts.append(label) }
-        
-        if result.points > 0   { parts.append("\(result.points)点") }
+            parts.append(label)
+        }
+
+        if result.points > 0 { parts.append("\(result.points)点") }
         return parts.isEmpty ? "" : parts.joined(separator: " ")
     }
 

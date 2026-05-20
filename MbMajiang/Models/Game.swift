@@ -36,6 +36,8 @@ class Game: Identifiable {
         self.board = board
         self.status = status
         self.players = []
+        self.status.riichiAnkanLevel = settings.riichiAnkanLevel
+        self.status.notenSengenAri = settings.notenSengenAri
     }
     
     func start() {
@@ -69,7 +71,7 @@ class Game: Identifiable {
         status.menfengList = board.score.defen.map { $0.0 }
         status.afterLizhiDiscards = [[],[],[],[]]
         status.junDiscards = [[],[],[],[]]
-        
+
         board.shan = Shan(settings: settings)
         for (i, player) in players.enumerated() {
             player.shoupai=board.shan.shoupai[i]
@@ -77,26 +79,47 @@ class Game: Identifiable {
             player.status=PlayerStatus()
         }
         applyDebugHands()
-
-        advance()
+        SoundManager.shared.playSequence(roundAnnouncementNames(), overlap: 0.15)
+        let (roundNames, honbaNames) = roundCutInImageNames()
+        roundCutInRoundNames = roundNames
+        roundCutInHonbaNames = honbaNames
     }
-    
-    func hule(player: Int?, kind: HuleResult.Kind) {
-        switch kind {
-        case .rong: SoundManager.shared.play("rong")
-        case .zimo: SoundManager.shared.play("zimo")
+
+    private func roundAnnouncementNames() -> [String] {
+        var names: [String] = []
+        let raw = board.score.round.rawValue
+        names.append(raw.hasPrefix("東") ? "tong" : "nan")
+        switch raw {
+        case "東一局", "南一局": names.append("ikkyoku")
+        case "東二局", "南二局": names.append("nikyoku")
+        case "東三局", "南三局": names.append("sankyoku")
+        case "東四局", "南四局": names.append("yonkyoku")
         default: break
         }
-        status.hulePlayer = player
-        let idx = player ?? 0
-        let context = buildHuleContext(player: player, kind: kind)
-        let result = buildHuleResult(playerIdx: idx, kind: kind, context: context, honba: board.score.honba, lizhibang: board.score.lizhibang, baseDefen: board.score.defen)
+        let h = board.score.honba
+        let honbaFiles = ["ipponba", "nihonba", "sanbonba",
+                          "yonhonba", "gohonba", "ropponba",
+                          "nanahonba", "happonba"]
+        if h >= 1 && h <= 8 { names.append(honbaFiles[h - 1]) }
+        return names
+    }
+    
+    func zimoHule() {
+        SoundManager.shared.play("zimo")
+        let idx = status.player
+        huleCutInPlayer = idx
+        huleCutInImageName = "zimo"
+        status.hulePlayer = idx
+        let context = buildHuleContext(player: idx, kind: .zimo)
+        let result = buildHuleResult(playerIdx: idx, kind: .zimo, context: context, honba: board.score.honba, lizhibang: board.score.lizhibang, baseDefen: board.score.defen)
         pendingHuleResults.append(result)
         status.phase = .hule
     }
 
-    private func processRonWinners(_ winnerIds: [Int]) {
+    func ronHule(_ winnerIds: [Int]) {
         SoundManager.shared.play("rong")
+        huleCutInPlayer = winnerIds.first
+        huleCutInImageName = "rong"
         primaryRonWinner = winnerIds.first
         var currentDefen = board.score.defen
         for (i, winnerId) in winnerIds.enumerated() {
@@ -126,11 +149,13 @@ class Game: Identifiable {
 
     func zimo() {
         guard board.shan.paishu > 0 else {
-                  pingju()
-                  return
-              }
+            status.phase = .pingju
+            advance()
+            return
+        }
         status.lastDapai = nil
         status.phase = .zimo
+        status.isLingshang = false
         status.junDiscards[status.player] = []
         infoMessage = nil
         processLizhiPayments()
@@ -158,7 +183,7 @@ class Game: Identifiable {
 
         //カンドラめくり
         if status.gangdoraFlag == .afterZimo {
-            board.shan.wangpai.revealGangdora()
+            if settings.kandoraAri { board.shan.wangpai.revealGangdora() }
             status.gangdoraFlag = .none
         }
 
@@ -168,6 +193,7 @@ class Game: Identifiable {
         }
 
         status.phase = .zimo
+        status.isLingshang = true
         let tile = board.shan.wangpai.lingshang.removeLast()
         players[status.player].shoupai.zimo = tile
         status.zimo = tile.label
@@ -180,18 +206,21 @@ class Game: Identifiable {
         infoMessage = nil
         SoundManager.shared.play("dapai")
         let player = status.player
+        let isFirstDiscard = players[player].status.firstDapai == nil
         let dapai=players[player].dapai()
         status.dapai = dapai.label
         status.lastDapai = (player: player, index: players[player].he.qipai.count - 1)
-        
+
         //カンドラめくり
         if status.gangdoraFlag == .afterDapai {
-            board.shan.wangpai.revealGangdora()
+            if settings.kandoraAri { board.shan.wangpai.revealGangdora() }
             status.gangdoraFlag = .none
         }
-        
+
         // リーチ宣言打牌の後処理
         if players[player].status.isSelectingRiichi {
+            let isDaburi = isFirstDiscard && players.allSatisfy { $0.shoupai.fulou.isEmpty }
+            players[player].status.isDaburi = isDaburi
             SoundManager.shared.play("lizhi")
             players[player].pendingLizhi()
             lizhiCutInPlayer = player
@@ -199,10 +228,7 @@ class Game: Identifiable {
             players[player].cancelYifa()
         }
 
-        // リーチ後の打牌を記録
-        if players[player].status.isLizhi {
-            status.afterLizhiDiscards[player].append(dapai.normalized)
-        }
+
 
         // 回転処理（リーチ打牌 or 副露された後の打牌）
         if players[player].status.shouldRotateNextDapai {
@@ -223,10 +249,13 @@ class Game: Identifiable {
 
     func peng(player fulouPlayer: Int) {
         SoundManager.shared.play("peng")
-        showActionBanner("peng")
+        showActionBanner("peng", player: fulouPlayer)
         status.lastDapai = nil
         guard players[fulouPlayer].status.selectedPengIndices.count == 2 else { return }
         let dapaiPai = players[status.player].he.callLast()
+        if let paoIdx = detectPao(fulouPlayer: fulouPlayer, calledTile: dapaiPai, isMinggang: false) {
+            players[fulouPlayer].status.paoPlayerIdx = paoIdx
+        }
         let relPos = (fulouPlayer - status.player + 4) % 4
         let tajia: Jia
         switch relPos {
@@ -242,11 +271,15 @@ class Game: Identifiable {
         processLizhiPayments()
         advance()
     }
-    
+
     func minggang(player fulouPlayer: Int) {
         SoundManager.shared.play("gang")
+        showActionBanner("gang", player: fulouPlayer)
         status.lastDapai = nil
         let dapaiPai = players[status.player].he.callLast()
+        if let paoIdx = detectPao(fulouPlayer: fulouPlayer, calledTile: dapaiPai, isMinggang: true) {
+            players[fulouPlayer].status.paoPlayerIdx = paoIdx
+        }
         let relPos = (fulouPlayer - status.player + 4) % 4
         let tajia: Jia
         switch relPos {
@@ -263,10 +296,50 @@ class Game: Identifiable {
         processLizhiPayments()
         advance()
     }
+
+    private func detectPao(fulouPlayer: Int, calledTile: Pai, isMinggang: Bool) -> Int? {
+        guard settings.yakumanPaoAri else { return nil }
+
+        let shoupai = players[fulouPlayer].shoupai
+        let calledNorm = Pai.normalize(calledTile.label)
+
+        let dragonLabels = Set(["z5", "z6", "z7"])
+        let windLabels   = Set(["z1", "z2", "z3", "z4"])
+
+        var existingDragonMelds = Set<String>()
+        var existingWindMelds   = Set<String>()
+        var existingKanCount    = 0
+
+        for group in shoupai.fulou {
+            let norms = group.map { Pai.normalize($0.label) }.filter { $0.count == 2 }
+            guard let first = norms.first, Set(norms).count == 1 else { continue }
+            if group.count == 4 { existingKanCount += 1 }
+            if dragonLabels.contains(first) { existingDragonMelds.insert(first) }
+            if windLabels.contains(first)   { existingWindMelds.insert(first) }
+        }
+
+        if dragonLabels.contains(calledNorm),
+           !existingDragonMelds.contains(calledNorm),
+           existingDragonMelds.count == 2 {
+            return status.player
+        }
+
+        if windLabels.contains(calledNorm),
+           !existingWindMelds.contains(calledNorm),
+           existingWindMelds.count == 3 {
+            return status.player
+        }
+
+        if isMinggang && existingKanCount == 3 {
+            return status.player
+        }
+
+        return nil
+    }
     
     func chi(player fulouPlayer: Int) {
         SoundManager.shared.play("chi")
-        showActionBanner("chi")
+        showActionBanner("chi", player: fulouPlayer)
         status.lastDapai = nil
         guard players[fulouPlayer].status.selectedChiIndices.count == 2 else { return }
         let dapaiPai = players[status.player].he.callLast()
@@ -288,6 +361,7 @@ class Game: Identifiable {
     
     func angang() {
         SoundManager.shared.play("gang")
+        showActionBanner("gang", player: status.player)
         players[status.player].angang()
         status.gangdoraFlag = .afterZimo
         status.phase = .lingshang
@@ -296,9 +370,11 @@ class Game: Identifiable {
     
     func kagang() {
         SoundManager.shared.play("gang")
+        showActionBanner("gang", player: status.player)
+        status.dapai = players[status.player].status.selectedKagang
         players[status.player].kagang()
         status.gangdoraFlag = .afterZimo
-        status.phase = .lingshang
+        status.phase = .kagang
         advance()
     }
 
@@ -311,21 +387,7 @@ class Game: Identifiable {
 
     // 全プレイヤーにcallbackを通知し、人間プレイヤーが準備完了次第ゲーム進行を処理
     private func advance() {
-        let _tAdv = Date().timeIntervalSince1970 * 1000
-        for player in players {
-            let _tp = Date().timeIntervalSince1970 * 1000
-            player.callback(status: self.status)
-            let dt = Date().timeIntervalSince1970 * 1000 - _tp
-            if dt >= 0.5 {
-                print(String(format: "[PERF] advance.callback p%d phase=%@ curPlayer=%d: %.2fms",
-                             player.id, "\(status.phase)", status.player, dt))
-            }
-        }
-        let totalDt = Date().timeIntervalSince1970 * 1000 - _tAdv
-        if totalDt >= 1.0 {
-            print(String(format: "[PERF] advance total phase=%@ curPlayer=%d: %.2fms",
-                         "\(status.phase)", status.player, totalDt))
-        }
+        players.forEach { $0.callback(status: self.status) }
 
         if needsHumanInput() {
             // 人間プレイヤーの入力待ち: Player.onActionReady 経由でゲームループを再開
@@ -393,7 +455,7 @@ class Game: Identifiable {
             // ツモアガリ
             if let winner = players.first(where: { $0.id == status.player && $0.status.decision == .hule }) {
                 winner.consumeDecision()
-                hule(player: winner.id, kind: .zimo)
+                zimoHule()
                 return
             }
 
@@ -420,7 +482,7 @@ class Game: Identifiable {
                     return
                 }
                 let winners = Array(sorted.prefix(maxWinners))
-                processRonWinners(winners.map { $0.id })
+                ronHule(winners.map { $0.id })
                 return
             }
             
@@ -447,10 +509,18 @@ class Game: Identifiable {
             }
             
             // ポスト処理：同巡フリテン用: 他プレイヤーのjunDiscardsに記録
+            // リーチ後フリテン用: 見逃したアガリ牌をafterLizhiDiscardsに記録（ツモ後もリセットしない）
             if let label = status.dapai {
                 let normalized = Pai.normalize(label)
                 for i in 0..<4 where i != status.player {
                     status.junDiscards[i].append(normalized)
+                    if players[i].status.isLizhi {
+                        let tiles = players[i].shoupai.visibleLabels.map { Pai.normalize($0) } + [normalized]
+                        if !Hule.winningDecompositions(tiles).isEmpty,
+                           !status.afterLizhiDiscards[i].contains(normalized) {
+                            status.afterLizhiDiscards[i].append(normalized)
+                        }
+                    }
                 }
             }
             
@@ -465,9 +535,45 @@ class Game: Identifiable {
             guard let actor = players.first(where: { $0.id == status.player && $0.status.decision == .dapai }) else { return }
             actor.consumeDecision()
             dapai()
-            
+
+        case .kagang:
+            // 槍槓：加槓牌でロンできるプレイヤーがいれば和了、いなければ嶺上牌をツモ
+            let hulers = players.filter { $0.status.decision == .hule }
+            if !hulers.isEmpty {
+                hulers.forEach { $0.consumeDecision() }
+                let discarder = status.player
+                let sorted = hulers.sorted { ($0.id - discarder + 4) % 4 < ($1.id - discarder + 4) % 4 }
+                let maxWinners: Int
+                switch settings.dojiHuleMax {
+                case .atamahane: maxWinners = 1
+                case .doubleRon: maxWinners = 2
+                case .tripleRon: maxWinners = 3
+                }
+                let winners = Array(sorted.prefix(maxWinners))
+                ronHule(winners.map { $0.id })
+            } else {
+                status.phase = .lingshang
+                lingshangzimo()
+            }
+
         case .lingshang:
             lingshangzimo()
+
+        case .pingju:
+            let tenpaiIndices: [Int]
+            if status.notenSengenAri {
+                tenpaiIndices = players.indices.filter { i in
+                    players[i].status.decision != .noten &&
+                    Hule.xiangting(players[i].shoupai.visibleLabels.map { Pai.normalize($0) }) == 0
+                }
+            } else {
+                tenpaiIndices = players.indices.filter { i in
+                    Hule.xiangting(players[i].shoupai.visibleLabels.map { Pai.normalize($0) }) == 0
+                }
+            }
+            players.forEach { $0.consumeDecision() }
+            computePingjuResult(declaredTenpaiIndices: tenpaiIndices)
+            status.phase = .hule
 
         default:
             break
@@ -606,7 +712,14 @@ class Game: Identifiable {
                 human.status.decision = .zimo
                 resolveHuman()
             }
-            
+
+        case .pingju:
+            human.status.decision = .pingju
+            resolveHuman()
+        case .noten:
+            human.status.decision = .noten
+            resolveHuman()
+
         default:
             resolveHuman()
         }
@@ -615,11 +728,50 @@ class Game: Identifiable {
     // MARK: - Lizhi Cut-in
     var lizhiCutInPlayer: Int? = nil
     var actionBannerImage: String? = nil
+    var actionBannerPlayer: Int? = nil
 
-    func showActionBanner(_ imageName: String, duration: Double = 1.2) {
+    // MARK: - Hule Cut-in
+    var huleCutInPlayer: Int? = nil
+    var huleCutInImageName: String? = nil
+
+    func dismissHuleCutIn() {
+        huleCutInPlayer = nil
+        huleCutInImageName = nil
+    }
+
+    // MARK: - Round Cut-in
+    var roundCutInRoundNames: [String] = []
+    var roundCutInHonbaNames: [String] = []
+
+    func dismissRoundCutIn() {
+        roundCutInRoundNames = []
+        roundCutInHonbaNames = []
+        advance()
+    }
+
+    private func roundCutInImageNames() -> (round: [String], honba: [String]) {
+        let raw = board.score.round.rawValue
+        var round: [String] = []
+        round.append(raw.hasPrefix("東") ? "dong" : "nan")
+        switch raw {
+        case "東一局", "南一局": round += ["yi", "kyoku"]
+        case "東二局", "南二局": round += ["er", "kyoku"]
+        case "東三局", "南三局": round += ["san", "kyoku"]
+        case "東四局", "南四局": round += ["si", "kyoku"]
+        default: break
+        }
+        let numberImages = ["yi", "er", "san", "si"]
+        let h = board.score.honba
+        let honba: [String] = (h >= 1 && h <= 4) ? [numberImages[h - 1], "honba"] : []
+        return (round, honba)
+    }
+
+    func showActionBanner(_ imageName: String, player: Int? = nil, duration: Double = 1.2) {
         actionBannerImage = imageName
+        actionBannerPlayer = player
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
             self?.actionBannerImage = nil
+            self?.actionBannerPlayer = nil
         }
     }
 
@@ -628,6 +780,44 @@ class Game: Identifiable {
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
             self?.advance()
         }
+    }
+
+    // MARK: - Machi Tiles
+    var machiTiles: [String] = []
+    var machiYakuSet: Set<String> = []
+    var machiFuritenSet: Set<String> = []
+    var pendingDapaiIndex: Int? = nil
+
+    func checkMachiHasYaku(hand13: [String], winTile: String) -> Bool {
+        guard let human = humanPlayer else { return false }
+        let zhuangfeng: Feng = board.score.round.rawValue.hasPrefix("東") ? .東 : .南
+        let menfeng: Feng = board.score.defen[0].0
+        let normalized = Pai.normalize(winTile)
+        let fulouTiles = human.shoupai.fulouTiles
+        let context = HuleContext(
+            zhuangfeng: zhuangfeng,
+            menfeng: menfeng,
+            zimo: false,  // メンゼンツモを役として数えない
+            menqian: human.status.isMenqian,
+            lizhi: human.status.isLizhi,
+            daburi: human.status.isDaburi,
+            yifa: false, qianggang: false, lingshang: false,
+            haidi: false, hedi: false, tianhu: false, dihu: false,
+            winTile: normalized,
+            renpuFu: settings.renpuFu == .four ? 4 : 2,
+            kuitanAri: settings.kuitanAri
+        )
+        let tiles = (hand13 + [normalized]).sorted()
+        let decomps = Hule.winningDecompositions(tiles, fulouTiles)
+        let result = Hule.getYaku(
+            tiles: tiles,
+            context: context,
+            baopai: board.shan.wangpai.baopai.map { $0.label },
+            libaopai: [],
+            fulouTiles: fulouTiles
+        )
+        print("[checkMachiHasYaku] winTile=\(normalized) hand=\(hand13) fulouTiles=\(fulouTiles) tiles=\(tiles) decomps=\(decomps.count) yaku=\(result.yaku.map(\.name))")
+        return !result.yaku.isEmpty
     }
 
     // MARK: - Hule Result
@@ -656,14 +846,14 @@ class Game: Identifiable {
             zimo: kind == .zimo,
             menqian: players[idx].status.isMenqian,
             lizhi: players[idx].status.isLizhi,
-            daburi: false,
-            yifa: players[idx].status.isYifa,
-            qianggang: false,
-            lingshang: false,
-            haidi: kind == .zimo && board.shan.shan.isEmpty,
-            hedi: kind == .rong && board.shan.shan.isEmpty,
-            tianhu: false,
-            dihu: false,
+            daburi: players[idx].status.isDaburi,
+            yifa: players[idx].status.isYifa && settings.ippatsuAri,
+            qianggang: kind == .rong && status.phase == .kagang,
+            lingshang: kind == .zimo && status.isLingshang,
+            haidi: kind == .zimo && board.shan.paishu == 0,
+            hedi: kind == .rong && board.shan.paishu == 0,
+            tianhu: kind == .zimo && players[idx].status.firstDapai == nil && idx == getTongjia(),
+            dihu:   kind == .zimo && players[idx].status.firstDapai == nil && idx != getTongjia() && players.allSatisfy { $0.shoupai.fulou.isEmpty },
             winTile: winTileLabel,
             renpuFu: settings.renpuFu == .four ? 4 : 2,
             kuitanAri: settings.kuitanAri
@@ -690,14 +880,15 @@ class Game: Identifiable {
             }
         }()
 
-        let baopai   = board.shan.wangpai.baopai.map { $0.label }
-        let libaopai = context.lizhi
-            ? Array(board.shan.wangpai.libaopai.prefix(baopai.count)).map { $0.label }
-            : []
+        let baopai = board.shan.wangpai.baopai.map { $0.label }
+        let libaopai: [String] = {
+            guard context.lizhi && settings.uradoraAri else { return [] }
+            let limit = settings.kanUraAri ? baopai.count : 1
+            return Array(board.shan.wangpai.libaopai.prefix(limit)).map { $0.label }
+        }()
         let score = Hule.getYaku(tiles: tiles, context: context, baopai: baopai, libaopai: libaopai, fulouTiles: player.shoupai.fulouTiles)
-        let hupai    = score.yaku.map { (name: $0.name, fan: $0.fanshu) }
-        let fu       = score.fu
-        let totalFan = score.yaku.reduce(0) { $0 + $1.fanshu }
+        let hupai = score.yaku.map { (name: $0.name, fan: $0.fanshu) }
+        let fu    = score.fu
 
         let dealerIdx = getTongjia()
         let loserIdx: Int? = kind == .rong ? status.player : nil
@@ -709,12 +900,23 @@ class Game: Identifiable {
             loserIdx: loserIdx,
             dealerIdx: dealerIdx,
             honba: honba,
-            lizhibang: lizhibang
+            lizhibang: lizhibang,
+            yakumanFukugouAri: settings.yakumanFukugouAri,
+            doubleYakumanAri: settings.doubleYakumanAri,
+            kazoeYakumanAri: settings.kazoeYakumanAri,
+            kiriageMangan: settings.kiriageMangan,
+            paoPlayerIdx: players[playerIdx].status.paoPlayerIdx
         )
 
         let afterScores: [(feng: Feng, points: Int)] = baseDefen
             .enumerated()
             .map { (i, kv) in (feng: kv.0, points: kv.1 + defenResult.fenpei[i]) }
+
+        let displayLibaopai: [Pai] = {
+            guard context.lizhi && settings.uradoraAri else { return [] }
+            let limit = settings.kanUraAri ? board.shan.wangpai.baopai.count : 1
+            return Array(board.shan.wangpai.libaopai.prefix(limit))
+        }()
 
         let basePoints = defenResult.defen - honba * 300 - lizhibang * 1000
         return HuleResult(
@@ -724,12 +926,10 @@ class Game: Identifiable {
             fulou: player.shoupai.fulou,
             winTile: winTile,
             baopai: board.shan.wangpai.baopai,
-            libaopai: context.lizhi
-                ? Array(board.shan.wangpai.libaopai.prefix(board.shan.wangpai.baopai.count))
-                : [],
+            libaopai: displayLibaopai,
             hupai: hupai,
             fu: fu,
-            totalFan: totalFan,
+            totalFan: defenResult.effectiveFan,
             points: basePoints,
             scoreChanges: defenResult.fenpei,
             afterScores: afterScores,
@@ -751,7 +951,7 @@ class Game: Identifiable {
         return he.qipai.allSatisfy { Game.yaochuLabels.contains(Pai.normalize($0.label)) }
     }
 
-    private func computePingjuResult(kind: HuleResult.Kind = .pingju) {
+    private func computePingjuResult(kind: HuleResult.Kind = .pingju, declaredTenpaiIndices: [Int]? = nil) {
         // 流し満貫チェック（荒牌平局のみ）
         if kind == .pingju {
             let nagashiPlayers = players.indices.filter { isNagashiMangan(playerIdx: $0) }
@@ -761,14 +961,14 @@ class Game: Identifiable {
             }
         }
 
-        // テンパイ判定
-        let tenpaiIndices = players.indices.filter { i in
+        // テンパイ判定（ノーテン宣言あり時は宣言を優先）
+        let tenpaiIndices = declaredTenpaiIndices ?? players.indices.filter { i in
             Hule.xiangting(players[i].shoupai.visibleLabels.map { Pai.normalize($0) }) == 0
         }
         // テンパイ料計算 (合計 3000 点)
         let n = tenpaiIndices.count
         var scoreChanges = [Int](repeating: 0, count: 4)
-        if n > 0 && n < 4 {
+        if settings.notenBatsuAri && n > 0 && n < 4 {
             let gain = 3000 / n
             let loss = 3000 / (4 - n)
             for i in 0..<4 { scoreChanges[i] = tenpaiIndices.contains(i) ? gain : -loss }
@@ -869,34 +1069,24 @@ class Game: Identifiable {
             lizhiPlayers: []
         ))
 
-        // 連荘 / 次局の判定（頭ハネ勝者が親なら連荘）
-        let dealerTenpai = result.tenpaiPlayers.contains(dealerIdx)
+        // 連荘 / 次局の判定
         if result.kind == .kyuushu || result.kind == .suufon || result.kind == .suuchaRiichi || result.kind == .suukanSanyou || result.kind == .sanchahou {
-            // 九種九牌・四風連打・四家立直・四槓散了・三家和 → 次局（本場+1）
+            // 途中流局 → renzhuFang に関わらず次局（本場+1）
             board.score.honba += 1
             board.score.nextRound()
-        } else if result.kind == .nagashiMangan {
-            // 流し満貫 → 親が成立なら連荘、そうでなければ次局（本場リセット）
-            if result.nagashiManganPlayers.contains(dealerIdx) {
+        } else {
+            let renzhu = shouldRenzhu(result: result, primaryWinner: primaryWinner, dealerIdx: dealerIdx)
+            if renzhu {
                 board.score.honba += 1
+            } else if result.kind == .pingju {
+                // 荒牌流局は非連荘でも本場+1
+                board.score.honba += 1
+                board.score.nextRound()
             } else {
+                // 和了・流し満貫は非連荘で本場リセット
                 board.score.honba = 0
                 board.score.nextRound()
             }
-        } else if result.kind == .pingju && dealerTenpai {
-            // 流局・親テンパイ → 連荘（本場+1）
-            board.score.honba += 1
-        } else if result.kind == .pingju && !dealerTenpai {
-            // 流局・親ノーテン → 次局（風を回す・本場+1）
-            board.score.honba += 1
-            board.score.nextRound()
-        } else if primaryWinner == dealerIdx {
-            // 頭ハネ勝者が親 → 連荘（本場+1）
-            board.score.honba += 1
-        } else {
-            // 頭ハネ勝者が子 → 次局（風を回す・本場リセット）
-            board.score.honba = 0
-            board.score.nextRound()
         }
 
         // 終局チェック（nextRound後）
@@ -907,6 +1097,24 @@ class Game: Identifiable {
 
         //局開始
         qipai()
+    }
+
+    private func shouldRenzhu(result: HuleResult, primaryWinner: Int?, dealerIdx: Int) -> Bool {
+        let dealerTenpai = result.tenpaiPlayers.contains(dealerIdx)
+        switch settings.renzhuFang {
+        case .none:
+            return false
+        case .hule:
+            if result.kind == .pingju { return false }
+            if result.kind == .nagashiMangan { return result.nagashiManganPlayers.contains(dealerIdx) }
+            return primaryWinner == dealerIdx
+        case .tenpai:
+            if result.kind == .pingju { return dealerTenpai }
+            if result.kind == .nagashiMangan { return result.nagashiManganPlayers.contains(dealerIdx) }
+            return primaryWinner == dealerIdx
+        case .noten:
+            return true
+        }
     }
 
     private func isSuukanSanyou() -> Bool {
@@ -932,6 +1140,7 @@ class Game: Identifiable {
     }
 
     private func isGameOver() -> Bool {
+        if settings.tobiEndAri && board.score.defen.contains(where: { $0.1 < 0 }) { return true }
         switch settings.kyokuCount {
         case .ikkokuSen:
             return board.score.round == .東二局 || board.score.round == .終局
@@ -1010,4 +1219,7 @@ struct GameStatus {
     var lastDapai: (player: Int, index: Int)? = nil
     var afterLizhiDiscards: [[String]] = [[],[],[],[]]
     var junDiscards: [[String]] = [[],[],[],[]]
+    var riichiAnkanLevel: GameSettings.RiichiAnkanLevel = .noChangeWaiting
+    var isLingshang: Bool = false
+    var notenSengenAri: Bool = false
 }
