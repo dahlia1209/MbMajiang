@@ -564,6 +564,10 @@ class Player {
 // MARK: - AIPlayer
 class AIPlayer: Player {
     override var isHuman: Bool { false }
+    var cpuLevel: GameSettings.CpuLevel = .level1
+    var getRemainingCounts: (() -> [String: Int])?
+    /// リーチ中の相手がいればプレイヤーごとの現物セット配列を返す、いなければ nil
+    var getRiichiGenbutsu: (() -> [Set<String>]?)?
     
     override func onKaiju(_ status: GameStatus) {
         self.status.decision = .none
@@ -653,38 +657,117 @@ class AIPlayer: Player {
         }
     }
     
-    // シャンテン数が最小になる牌を選んで打牌する
+    // シャンテン数最小化（Level 1）または有効牌受け入れ枚数最大化（Level 2）で打牌を選ぶ
     func selectDapai() {
-        // bingpai(13枚) + zimo(1枚) の計14枚を正規化したラベル配列を作る
         let bingpai = shoupai.bingpai.filter { !$0.hidden }
         var allLabels = bingpai.map { $0.normalized }
         if let zimo = shoupai.zimo {
             allLabels.append(zimo.normalized)
         }
 
-        // 14枚でない場合はツモ切りにフォールバック
         guard allLabels.count == 14 else {
             self.status.decision = .dapai
             self.status.selectedIdx = shoupai.bingpai.count
             return
         }
 
-        var bestIdx = shoupai.bingpai.count  // デフォルトはツモ切り
-        var bestShanten = Int.max
+        // Level 2: 降り判断（リーチ相手がいてシャンテン2以上なら安全牌優先）
+        if cpuLevel == .level2, let genbutsuList = getRiichiGenbutsu?() {
+            if let safeIdx = findSafeDiscard(allLabels: allLabels, bingpaiCount: bingpai.count, genbutsuList: genbutsuList) {
+                self.status.decision = .dapai
+                self.status.selectedIdx = safeIdx
+                return
+            }
+        }
 
-        // 各牌を1枚ずつ除いた13枚でシャンテン数を計算
+        let remaining: [String: Int] = cpuLevel == .level2 ? (getRemainingCounts?() ?? [:]) : [:]
+
+        var bestIdx = shoupai.bingpai.count
+        var bestShanten = Int.max
+        var bestAcceptance = -1
+
         for i in 0..<allLabels.count {
-            var remaining = allLabels
-            remaining.remove(at: i)
-            let shanten = Hule.xiangting(remaining)
-            if shanten < bestShanten {
+            var hand13 = allLabels
+            hand13.remove(at: i)
+            let shanten = Hule.xiangting(hand13)
+            let acceptance = remaining.isEmpty ? 0 : effectiveTileAcceptance(hand13: hand13, currentShanten: shanten, remainingCounts: remaining)
+
+            if shanten < bestShanten || (shanten == bestShanten && acceptance > bestAcceptance) {
                 bestShanten = shanten
+                bestAcceptance = acceptance
                 bestIdx = i < bingpai.count ? i : shoupai.bingpai.count
             }
         }
 
         self.status.decision = .dapai
         self.status.selectedIdx = bestIdx
+    }
+
+    /// 降りモード: シャンテン2以上のときに安全牌インデックスを返す（テンパイ/1シャンテンはnil→押し）
+    /// 優先順位: 1.全員現物（積集合）2.誰かの現物（和集合）3.字牌 4.該当なし→nil
+    private func findSafeDiscard(allLabels: [String], bingpaiCount: Int, genbutsuList: [Set<String>]) -> Int? {
+        var bestShanten = Int.max
+        for i in 0..<allLabels.count {
+            var hand13 = allLabels; hand13.remove(at: i)
+            bestShanten = min(bestShanten, Hule.xiangting(hand13))
+        }
+        guard bestShanten >= 2 else { return nil }
+
+        func mapIdx(_ i: Int) -> Int { i < bingpaiCount ? i : bingpaiCount }
+
+        // 安全牌候補セットの中でシャンテン損が最小のインデックスを探す
+        func bestIdx(in safeSet: Set<String>) -> Int? {
+            var best: Int? = nil
+            var bestS = Int.min
+            for i in 0..<allLabels.count where safeSet.contains(allLabels[i]) {
+                var hand13 = allLabels; hand13.remove(at: i)
+                let s = Hule.xiangting(hand13)
+                if s > bestS { bestS = s; best = mapIdx(i) }
+            }
+            return best
+        }
+
+        // 1. 全員現物（積集合）
+        let allSafe = genbutsuList.dropFirst().reduce(genbutsuList[0]) { $0.intersection($1) }
+        if let idx = bestIdx(in: allSafe) { return idx }
+
+        // 2. 誰かの現物（和集合）
+        let anySafe = genbutsuList.reduce(Set<String>()) { $0.union($1) }
+        if let idx = bestIdx(in: anySafe) { return idx }
+
+        // 3. 字牌
+        let jihai = Set(allLabels.filter { $0.hasPrefix("z") })
+        if let idx = bestIdx(in: jihai) { return idx }
+
+        return nil
+    }
+
+    // hand13（13枚・正規化済み）に対して有効牌の残り総枚数を返す
+    // 各牌種について「加牌して最適打牌すればシャンテンが下がるか」を評価する
+    private func effectiveTileAcceptance(hand13: [String], currentShanten: Int, remainingCounts: [String: Int]) -> Int {
+        // 赤ドラを正規化済み牌にまとめる（"m0" → "m5" など）
+        var normalizedRemaining: [String: Int] = [:]
+        for (label, count) in remainingCounts where count > 0 {
+            let norm = Pai.normalize(label)
+            normalizedRemaining[norm, default: 0] += count
+        }
+
+        var total = 0
+        for (tile, count) in normalizedRemaining where count > 0 {
+            let hand14 = hand13 + [tile]
+            // hand14 から 1 枚ずつ除いた 13 枚でシャンテンが下がるか確認
+            var improved = false
+            for removeIdx in hand14.indices {
+                var test = hand14
+                test.remove(at: removeIdx)
+                if Hule.xiangting(test) < currentShanten {
+                    improved = true
+                    break
+                }
+            }
+            if improved { total += count }
+        }
+        return total
     }
     
     func isCurrentId(_ currentPlayer: Int) -> Bool {

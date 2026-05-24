@@ -11,6 +11,7 @@ class SoundManager {
     static let shared = SoundManager()
 
     private var players: [String: AVAudioPlayer] = [:]
+    private var bgmPlayer: AVAudioPlayer?
 
     private init() {
         do {
@@ -40,6 +41,25 @@ class SoundManager {
             }
             offset += max(dur - overlap, 0)
         }
+    }
+
+    func playBGM(_ name: String, volume: Float = 0.5) {
+        guard let url = urlFor(name) else { return }
+        bgmPlayer?.stop()
+        bgmPlayer = try? AVAudioPlayer(contentsOf: url)
+        bgmPlayer?.numberOfLoops = -1
+        bgmPlayer?.volume = volume
+        bgmPlayer?.prepareToPlay()
+        bgmPlayer?.play()
+    }
+
+    func stopBGM() {
+        bgmPlayer?.stop()
+        bgmPlayer = nil
+    }
+
+    func setBGMMuted(_ muted: Bool, volume: Float = 0.5) {
+        bgmPlayer?.volume = muted ? 0 : volume
     }
 
     func duration(for name: String) -> TimeInterval {

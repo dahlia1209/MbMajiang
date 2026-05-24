@@ -25,8 +25,15 @@ struct ScoreBoardView: View {
         }
         .fixedSize()
         .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .background(Color.black)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color.black.opacity(0.65))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color(red: 0.82, green: 0.68, blue: 0.25).opacity(0.4), lineWidth: 1)
+                )
+        )
     }
     
     // MARK: - Round Info
@@ -36,24 +43,25 @@ struct ScoreBoardView: View {
                 .font(.system(size: 15, weight: .medium))
                 .foregroundColor(Color(red: 0.9, green: 0.78, blue: 0.28))
                 .tracking(2)
+                .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
             
             VStack(spacing: 4) {
                 Text("本場　\(score.honba)")
                 Text("供託　\(score.lizhibang)")
             }
             .font(.system(size: 12))
-            .foregroundColor(.white.opacity(0.6))
+            .foregroundColor(.white.opacity(0.75))
         }
         .frame(maxWidth: .infinity)
     }
-    
+
     // MARK: - Dora Section
     var doraSection: some View {
         HStack(spacing: 8) {
             WangpaiView(wangpai: wangpai)
             Text("残り\n\(self.paishu)")
                 .font(.system(size: 12))
-                .foregroundColor(.white.opacity(0.6))
+                .foregroundColor(.white.opacity(0.75))
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -68,7 +76,8 @@ struct ScoreBoardView: View {
             scoreLabel(playerIdx: 3).offset(x: -80)
         }
         .font(.system(size: 12, weight: .regular))
-        .foregroundColor(.white.opacity(0.7))
+        .foregroundColor(.white.opacity(0.85))
+        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
         .frame(maxWidth: .infinity)
         .frame(height: 60)
     }

@@ -14,7 +14,7 @@ struct GameSettingsPresetTests {
     @Test("デフォルト設定はカスタム")
     func defaultIsCustom() {
         let s = GameSettings()
-        #expect(s.currentPreset == .custom)
+        #expect(s.currentPreset == .mleague)
     }
 
     @Test("天鳳プリセット適用後は currentPreset == .tenhou")

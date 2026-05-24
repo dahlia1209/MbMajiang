@@ -17,7 +17,7 @@ struct TitleView: View {
                 .scaledToFill()
                 .ignoresSafeArea()
 
-            Color.black.opacity(0.25)
+            Color.black.opacity(0.15)
                 .ignoresSafeArea()
 
             // ② メインコンテンツ
@@ -53,11 +53,11 @@ struct TitleView: View {
                 .font(.system(size: 18, weight: .bold, design: .monospaced))
                 .foregroundStyle(Color(red: 0.97, green: 0.93, blue: 0.83))
                 .frame(width: 140, height: 44)
-                .background(Color(red: 0.5, green: 0.04, blue: 0.1).opacity(0.75))
+                .background(Color(red: 0.08, green: 0.28, blue: 0.12).opacity(0.85))
                 .cornerRadius(6)
                 .overlay(
                     RoundedRectangle(cornerRadius: 6)
-                        .stroke(Color(red: 0.75, green: 0.55, blue: 0.15).opacity(0.8), lineWidth: 1.5)
+                        .stroke(Color(red: 0.82, green: 0.68, blue: 0.25).opacity(0.9), lineWidth: 1.5)
                 )
         }
     }
@@ -70,28 +70,28 @@ struct TitleView: View {
             decorativeDivider
             
             // ⑥ サブタイトル（英語 or 読み）
-            Text("MAJIANG")
+            Text("FUTA MAJIANG")
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color(red: 0.97, green: 0.93, blue: 0.83))
+                .foregroundStyle(Color(red: 0.82, green: 0.68, blue: 0.25))
                 .tracking(8)
-                .shadow(color: Color.black.opacity(0.6), radius: 4)
+                .shadow(color: Color.black.opacity(0.5), radius: 3)
                 .opacity(subtitleOpacity)
 
             // ⑦ メインタイトル（大きく迫力ある）
-            Text("麻雀")
+            Text("風太麻雀")
                 .font(.system(size: 96, weight: .black))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
                             Color(red: 0.97, green: 0.93, blue: 0.83),
-                            Color(red: 0.75, green: 0.55, blue: 0.15)
+                            Color(red: 0.82, green: 0.68, blue: 0.25)
                         ],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
-                .shadow(color: Color(red: 0.4, green: 0.0, blue: 0.05).opacity(0.9), radius: 6, x: 2, y: 2)
-                .shadow(color: Color(red: 0.55, green: 0.05, blue: 0.1).opacity(0.5), radius: 20)
+                .shadow(color: Color(red: 0.05, green: 0.2, blue: 0.08).opacity(0.9), radius: 6, x: 2, y: 2)
+                .shadow(color: Color(red: 0.05, green: 0.2, blue: 0.08).opacity(0.5), radius: 20)
                 .opacity(titleOpacity)
                 .offset(y: titleOffset)
             
@@ -108,7 +108,7 @@ struct TitleView: View {
             Rectangle()
                 .fill(
                     LinearGradient(
-                        colors: [.clear, Color(red: 0.75, green: 0.55, blue: 0.15)],
+                        colors: [.clear, Color(red: 0.82, green: 0.68, blue: 0.25)],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
@@ -118,12 +118,12 @@ struct TitleView: View {
             // 中央の菱形
             Image(systemName: "diamond.fill")
                 .font(.system(size: 8))
-                .foregroundColor(Color(red: 0.75, green: 0.55, blue: 0.15))
+                .foregroundColor(Color(red: 0.82, green: 0.68, blue: 0.25))
 
             Rectangle()
                 .fill(
                     LinearGradient(
-                        colors: [Color(red: 0.75, green: 0.55, blue: 0.15), .clear],
+                        colors: [Color(red: 0.82, green: 0.68, blue: 0.25), .clear],
                         startPoint: .leading,
                         endPoint: .trailing
                     )
@@ -139,8 +139,8 @@ struct TitleView: View {
             // TOUCH TO START テキスト
             Text("TOUCH TO START")
                 .font(.system(size: 16, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color(red: 0.97, green: 0.93, blue: 0.83))
-                .shadow(color: Color.black.opacity(0.7), radius: 4)
+                .foregroundStyle(Color(red: 0.82, green: 0.68, blue: 0.25))
+                .shadow(color: Color.black.opacity(0.6), radius: 4)
                 .tracking(4)
                 .opacity(showMenu ? 0 : blinkOpacity)
                 .animation(

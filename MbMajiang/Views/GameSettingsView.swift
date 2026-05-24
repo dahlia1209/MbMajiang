@@ -24,6 +24,11 @@ struct GameSettingsView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
 
+                        sectionHeader("CPU設定")
+                        radioRow("CPUの強さ", selection: Bindable(settings).cpuLevel)
+
+                        groupDivider
+
                         sectionHeader("表示設定")
                         boolRow("アガリ牌表示", isOn: Bindable(settings).agariHaiDisplay)
                         boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
@@ -395,13 +400,13 @@ struct GameSettingsView: View {
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 4)
-                        .fill(Color(red: 0.8, green: 0.6, blue: 0.1).opacity(0.25))
+                        .fill(Color(red: 0.82, green: 0.68, blue: 0.25).opacity(0.25))
                         .blur(radius: 8)
                     RoundedRectangle(cornerRadius: 4)
                         .stroke(
                             LinearGradient(
-                                colors: [Color(red: 1.0, green: 0.85, blue: 0.4),
-                                         Color(red: 0.7, green: 0.5, blue: 0.1)],
+                                colors: [Color(red: 0.97, green: 0.93, blue: 0.83),
+                                         Color(red: 0.82, green: 0.68, blue: 0.25)],
                                 startPoint: .topLeading, endPoint: .bottomTrailing),
                             lineWidth: 1.5)
                         .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.05)))
@@ -409,8 +414,8 @@ struct GameSettingsView: View {
                         .font(.system(size: 16, weight: .semibold, design: .monospaced))
                         .foregroundStyle(
                             LinearGradient(
-                                colors: [Color(red: 1.0, green: 0.92, blue: 0.6),
-                                         Color(red: 0.9, green: 0.7, blue: 0.2)],
+                                colors: [Color(red: 0.97, green: 0.93, blue: 0.83),
+                                         Color(red: 0.82, green: 0.68, blue: 0.25)],
                                 startPoint: .leading, endPoint: .trailing))
                         .tracking(4)
                 }
@@ -420,7 +425,7 @@ struct GameSettingsView: View {
             .buttonStyle(.plain)
             .padding(.top, 12)
         }
-        .background(Color(red: 12/255, green: 60/255, blue: 48/255).opacity(0.97))
+        .background(Color(red: 30/255, green: 85/255, blue: 25/255).opacity(0.97))
     }
 
     // MARK: - Actions

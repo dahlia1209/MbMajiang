@@ -4,6 +4,9 @@ import Observation
 @Observable
 final class GameSettings {
 
+    // MARK: - CPU
+    var cpuLevel: CpuLevel = .level1
+
     // MARK: - 点数
     var haikyuGenten: Int = 25000
     var junikitenRanks: [Int] = [10, -10, -30]  // 2着, 3着, 4着 (1着は自動計算)
@@ -92,6 +95,7 @@ final class GameSettings {
         ud.set(kazoeYakumanAri, forKey: "kazoeYakumanAri")
         ud.set(yakumanPaoAri, forKey: "yakumanPaoAri")
         ud.set(kiriageMangan, forKey: "kiriageMangan")
+        ud.set(cpuLevel.rawValue, forKey: "cpuLevel")
     }
 
     static func load() -> GameSettings {
@@ -136,10 +140,16 @@ final class GameSettings {
         s.kazoeYakumanAri    = ud.bool(forKey: "kazoeYakumanAri")
         s.yakumanPaoAri      = ud.bool(forKey: "yakumanPaoAri")
         s.kiriageMangan      = ud.bool(forKey: "kiriageMangan")
+        s.cpuLevel           = CpuLevel(rawValue: ud.string(forKey: "cpuLevel") ?? "") ?? s.cpuLevel
         return s
     }
 
     // MARK: - Enums
+
+    enum CpuLevel: String, CaseIterable, Hashable {
+        case level1 = "弱い"
+        case level2 = "普通"
+    }
 
     enum RenpuFu: String, CaseIterable, Hashable {
         case two = "2符"
@@ -218,7 +228,7 @@ final class GameSettings {
         kuitanAri            = true
         kuichikaeLevel       = .none
         kyokuCount           = .hanjouSen
-        tochukuryokuAri      = true
+        tochukuryokuAri      = false
         nagashiManganAri     = false
         notenSengenAri       = true
         notenBatsuAri        = true
@@ -249,7 +259,7 @@ final class GameSettings {
             && kuitanAri           == true
             && kuichikaeLevel      == .none
             && kyokuCount          == .hanjouSen
-            && tochukuryokuAri     == true
+            && tochukuryokuAri     == false
             && nagashiManganAri    == false
             && notenSengenAri      == true
             && notenBatsuAri       == true

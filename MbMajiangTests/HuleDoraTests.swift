@@ -145,6 +145,54 @@ struct DoraCountTests {
     }
 }
 
+// MARK: - ロン和了時の赤ドラカウント（修正確認）
+
+@Suite("ロン和了の赤ドラカウント")
+struct RonAkaDoraTests {
+
+    private func ctx(winTile: String) -> HuleContext {
+        HuleContext(
+            zhuangfeng: .東, menfeng: .南,
+            zimo: false, menqian: true,
+            lizhi: false, daburi: false, yifa: false,
+            qianggang: false, lingshang: false,
+            haidi: false, hedi: false, tianhu: false, dihu: false,
+            winTile: winTile
+        )
+    }
+
+    private func fan(_ result: (yaku: [Yaku], fu: Int), _ name: String) -> Int {
+        result.yaku.first { $0.name == name }?.fanshu ?? 0
+    }
+
+    @Test("ロン牌がm0（生ラベル）→ 断么九＋赤ドラ1")
+    func ronAkaDoraRawLabel() {
+        // 断么九: m345, p234, s234, m678, 雀頭s66 / ロン牌m0(=m5でm345完成)
+        let tiles = ["m3","m4","p2","p3","p4","s2","s3","s4","m6","m7","m8","s6","s6","m0"]
+        let result = Hule.getYaku(tiles: tiles, context: ctx(winTile: Pai.normalize("m0")))
+        #expect(fan(result, "断么九") == 1)
+        #expect(fan(result, "ドラ") == 1)   // 赤ドラ1枚がカウントされる
+    }
+
+    @Test("ロン牌がm5（正規化済み）→ 断么九のみ・赤ドラなし（修正前の挙動を確認）")
+    func ronAkaDoraNormalizedNoCount() {
+        // 同じ手牌だがロン牌を"m5"（正規化済み）で渡すと赤ドラがカウントされない
+        let tiles = ["m3","m4","p2","p3","p4","s2","s3","s4","m6","m7","m8","s6","s6","m5"]
+        let result = Hule.getYaku(tiles: tiles, context: ctx(winTile: "m5"))
+        #expect(fan(result, "断么九") == 1)
+        #expect(fan(result, "ドラ") == 0)   // 正規化済みでは赤ドラが消える
+    }
+
+    @Test("手牌にm0を含む（ロン牌以外の赤ドラ）→ 赤ドラカウントされる")
+    func handContainsAkaDora() {
+        // m345(赤ドラm0含む), p234, s234, m678, 雀頭s66 / ロン牌p4
+        let tiles = ["m3","m4","m0","p2","p3","s2","s3","s4","m6","m7","m8","s6","s6","p4"]
+        let result = Hule.getYaku(tiles: tiles, context: ctx(winTile: "p4"))
+        #expect(fan(result, "断么九") == 1)
+        #expect(fan(result, "ドラ") == 1)
+    }
+}
+
 // MARK: - akaDoraCount + doraCount の組み合わせ（getYaku内の実際の使い方を模倣）
 
 @Suite("doraCount + akaDoraCount 組み合わせ")

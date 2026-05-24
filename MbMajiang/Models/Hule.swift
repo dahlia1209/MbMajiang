@@ -642,10 +642,10 @@ extension Hule {
         if !yaku.isEmpty {return yaku}
 
         // 状況役
-        add(checkMenqianqingzimo(decomposition, context))
         add(checkLizhi(decomposition, context))
         add(checkDaburizhi(decomposition, context))
         add(checkYifa(decomposition, context))
+        add(checkMenqianqingzimo(decomposition, context))
         add(checkQianggang(decomposition, context))
         add(checkLingshang(decomposition, context))
         add(checkHaidi(decomposition, context))
@@ -753,24 +753,26 @@ extension Hule {
     }
     
     private static func checkYakuhai(_ decomposition: BlockCounts, _ ctx: HuleContext) -> [Yaku] {
-        guard let zKezi = decomposition.kezi["z"] else { return [] }
+        guard let zKezi   = decomposition.kezi["z"],
+              let zGangzi = decomposition.gangzi["z"] else { return [] }
+        let zBlocks = zip(zKezi, zGangzi).map { $0 + $1 }
         var result: [Yaku] = []
         let zhuangIdx = ctx.zhuangfeng.rawValue - 1  // 東=0,南=1,西=2,北=3
         let menIdx    = ctx.menfeng.rawValue - 1
         // 場風・自風（連風牌は2翻）
-        if zKezi[zhuangIdx] > 0 {
+        if zBlocks[zhuangIdx] > 0 {
             if zhuangIdx == menIdx {
                 result.append(Yaku(name: "連風牌（\(ctx.zhuangfeng.label)）", fanshu: 2))
             } else {
                 result.append(Yaku(name: "場風（\(ctx.zhuangfeng.label)）", fanshu: 1))
             }
         }
-        if menIdx != zhuangIdx && zKezi[menIdx] > 0 {
+        if menIdx != zhuangIdx && zBlocks[menIdx] > 0 {
             result.append(Yaku(name: "自風（\(ctx.menfeng.label)）", fanshu: 1))
         }
         // 三元牌: 白=index4, 發=index5, 中=index6
         for (i, name) in [(4, "白"), (5, "發"), (6, "中")] {
-            if i < zKezi.count && zKezi[i] > 0 {
+            if i < zBlocks.count && zBlocks[i] > 0 {
                 result.append(Yaku(name: name, fanshu: 1))
             }
         }

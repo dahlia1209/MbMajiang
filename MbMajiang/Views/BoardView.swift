@@ -15,6 +15,8 @@ struct BoardView: View {
     private let autoStart: Bool
     /// デバッグ: 全プレイヤーの手牌を公開するトグル
     @State private var revealAll: Bool = false
+    @State private var showQuitAlert = false
+    @State private var isBGMMuted = false
 
     init(game: Game, debugActions: Set<PlayerButtonAction>, autoStart: Bool = true) {
         self._game = State(initialValue: game)
@@ -45,7 +47,7 @@ struct BoardView: View {
 
     var body: some View {
         ZStack {
-            BackgroundLayer()
+            BackgroundLayer(imageName: "boardBackground")
 
             VStack {
                 Spacer()
@@ -61,7 +63,7 @@ struct BoardView: View {
                 .offset(y: 200)
                 .rotationEffect(.degrees(270))
             HeView(he: game.board.shan.he[2], highlightedIndex: lastDapaiIndex(for: 2))
-                .offset(y: 95)
+                .offset(y: 100)
                 .rotationEffect(.degrees(180))
             HeView(he: game.board.shan.he[3], highlightedIndex: lastDapaiIndex(for: 3))
                 .offset(y: 200)
@@ -129,6 +131,37 @@ struct BoardView: View {
                     .background(Color.black.opacity(0.7))
                     .cornerRadius(6)
                     .offset(y: 100)
+            }
+
+            // 終了・BGMボタン（左上）
+            HStack {
+                VStack(spacing: 8) {
+                    Button {
+                        showQuitAlert = true
+                    } label: {
+                        Text("×")
+                            .font(.system(size: 18, weight: .bold))
+                            .foregroundColor(.white.opacity(0.7))
+                            .frame(width: 38, height: 38)
+                            .background(Color.black.opacity(0.4))
+                            .clipShape(Circle())
+                    }
+                    Button {
+                        isBGMMuted.toggle()
+                        SoundManager.shared.setBGMMuted(isBGMMuted)
+                    } label: {
+                        Image(systemName: isBGMMuted ? "speaker.slash.fill" : "speaker.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(isBGMMuted ? .white.opacity(0.4) : .white.opacity(0.7))
+                            .frame(width: 38, height: 38)
+                            .background(Color.black.opacity(0.4))
+                            .clipShape(Circle())
+                    }
+                    Spacer()
+                }
+                .padding(.leading, 12)
+                .padding(.top, 12)
+                Spacer()
             }
 
             // 手牌表示トグル（設定で有効時のみ表示）
@@ -200,9 +233,31 @@ struct BoardView: View {
                 .allowsHitTesting(false)
             }
         }
+        // 流局カットイン
+        .overlay {
+            if game.pingjuCutInActive {
+                PingjuCutInView {
+                    game.dismissPingjuCutIn()
+                }
+            }
+        }
+        // テンパイカットイン（流局後、プレイヤーごとに順番に表示）
+        .overlay {
+            if let player = game.tenpaiCutInCurrentPlayer {
+                TenpaiCutInView {
+                    game.dismissTenpaiCutIn()
+                }
+                .rotationEffect(bannerRotation(for: player))
+                .offset(bannerOffset(for: player))
+                .id(player)
+            }
+        }
         // 和了・流局ダイアログ（カットイン終了後に表示）
         .overlay {
-            if let result = game.huleResult, game.huleCutInPlayer == nil {
+            if let result = game.huleResult,
+               game.huleCutInPlayer == nil,
+               !game.pingjuCutInActive,
+               game.tenpaiCutInCurrentPlayer == nil {
                 RoundResultView(result: result) {
                     game.dismissHuleResult()
                 }
@@ -224,8 +279,25 @@ struct BoardView: View {
                 game.pendingDapaiIndex = nil
             }
         }
+        .onChange(of: game.huleCutInPlayer) { _, player in
+            if player != nil { SoundManager.shared.stopBGM() }
+        }
+        .onChange(of: game.pingjuCutInActive) { _, active in
+            if active { SoundManager.shared.stopBGM() }
+        }
+        .onChange(of: game.roundCutInRoundNames) { _, names in
+            if !names.isEmpty { SoundManager.shared.playBGM("majiang_bgm") }
+        }
+        .alert("対局を終了しますか？", isPresented: $showQuitAlert) {
+            Button("終了", role: .destructive) { dismiss() }
+            Button("キャンセル", role: .cancel) {}
+        }
         .onAppear {
             setupGame()
+            SoundManager.shared.playBGM("majiang_bgm")
+        }
+        .onDisappear {
+            SoundManager.shared.stopBGM()
         }
     }
 

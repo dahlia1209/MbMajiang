@@ -26,7 +26,7 @@ enum PlayerButtonAction: CaseIterable, Hashable {
 
     nonisolated var label: String {
         switch self {
-        case .cancel: return "×"
+        case .cancel: return "スキップ"
         case .noten:  return "ノー聴"
         case .chi:    return "チー"
         case .peng:   return "ポン"
@@ -42,22 +42,29 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         }
     }
 
-    // ボタンの背景色
-     var color: Color {
+    // フレーム画像を使うボタンの色（nil = テキストのみ）
+    var tintColor: Color? {
         switch self {
-        case .cancel:         return Color(white: 0.35)
-        case .noten:          return Color(red: 0.5, green: 0.3, blue: 0.1)
-        case .chi:            return Color(red: 0.2, green: 0.45, blue: 0.2)
-        case .peng:           return Color(red: 0.2, green: 0.45, blue: 0.2)
-        case .gang:           return Color(red: 0.2, green: 0.45, blue: 0.2)
-        case .angang:           return Color(red: 0.2, green: 0.45, blue: 0.2)
-        case .kagang:           return Color(red: 0.2, green: 0.45, blue: 0.2)
-        case .minggang:           return Color(red: 0.2, green: 0.45, blue: 0.2)
-        case .lizhi:          return Color(red: 0.6, green: 0.45, blue: 0.1)
-        case .rong:           return Color(red: 0.55, green: 0.15, blue: 0.15)
-        case .zimo:           return Color(red: 0.55, green: 0.15, blue: 0.15)
-        case .pingju:         return Color(red: 0.25, green: 0.25, blue: 0.45)
-        case .kyuushu:        return Color(red: 0.25, green: 0.25, blue: 0.45)
+        case .chi:                          return Color(red: 0.2, green: 0.65, blue: 0.25)
+        case .peng:                         return Color(red: 0.15, green: 0.6,  blue: 0.65)
+        case .gang, .angang, .kagang, .minggang:
+                                            return Color(red: 0.55, green: 0.2,  blue: 0.7)
+        case .lizhi:                        return Color(red: 0.75, green: 0.55, blue: 0.1)
+        case .rong:                         return Color(red: 0.7,  green: 0.15, blue: 0.15)
+        case .zimo:                         return Color(red: 0.6,  green: 0.15, blue: 0.5)
+        case .cancel:                       return Color(white: 0.55)
+        default:                            return nil
+        }
+    }
+
+    // tintColor を持たないボタンの背景色
+    var color: Color {
+        switch self {
+        case .cancel:   return Color(white: 0.35)
+        case .noten:    return Color(red: 0.5, green: 0.3, blue: 0.1)
+        case .pingju:   return Color(red: 0.25, green: 0.25, blue: 0.45)
+        case .kyuushu:  return Color(red: 0.25, green: 0.25, blue: 0.45)
+        default:        return Color(red: 0.2, green: 0.45, blue: 0.2)
         }
     }
 }
@@ -70,7 +77,7 @@ struct PlayerButtonView: View {
 
     // HTMLの並び順に固定
     private let order: [PlayerButtonAction] = [
-        .cancel, .noten, .chi, .peng, .gang, .angang, .kagang, .minggang, .lizhi, .rong, .zimo, .pingju, .kyuushu
+        .noten, .chi, .peng, .gang, .angang, .kagang, .minggang, .lizhi, .rong, .zimo, .pingju, .kyuushu, .cancel
     ]
 
     var body: some View {
@@ -80,13 +87,27 @@ struct PlayerButtonView: View {
                     Button {
                         onAction(action)
                     } label: {
-                        Text(action.label)
-                            .font(.system(size: 18, weight: .bold))
-                            .foregroundColor(.white)
-                            .frame(minWidth: 64, minHeight: 48)
-                            .padding(.horizontal, 10)
-                            .background(action.color)
-                            .cornerRadius(8)
+                        if let tint = action.tintColor {
+                            ZStack {
+                                Image("buttonFrame")
+                                    .resizable()
+                                    .scaledToFit()
+                                    .colorMultiply(tint)
+                                Text(action.label)
+                                    .font(.system(size: 24, weight: .bold))
+                                    .foregroundColor(.white)
+                                    .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                            }
+                            .frame(height: 90)
+                        } else {
+                            Text(action.label)
+                                .font(.system(size: 18, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(minWidth: 100, minHeight: 90)
+                                .padding(.horizontal, 10)
+                                .background(action.color)
+                                .cornerRadius(8)
+                        }
                     }
                     .buttonStyle(.plain)
                 }
@@ -94,8 +115,6 @@ struct PlayerButtonView: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(Color.black.opacity(0.55))
-        .cornerRadius(10)
     }
 }
 
