@@ -71,7 +71,8 @@ class Shoupai{
             } else if labels.count == 3 && Set(normNums).count == 1 {
                 return suit + nums.map { String($0) }.joined()
             } else if labels.count == 3 && suit != "z" {
-                return suit + normNums.sorted().map { String($0) }.joined()
+                let sortedNums = nums.sorted { ($0 == 0 ? 5 : $0) < ($1 == 0 ? 5 : $1) }
+                return suit + sortedNums.map { String($0) }.joined()
             }
             return nil
         }

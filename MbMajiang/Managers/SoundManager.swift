@@ -10,8 +10,11 @@ import AVFoundation
 class SoundManager {
     static let shared = SoundManager()
 
+    var soundTheme: GameSettings.SoundTheme = .standard
+
     private var players: [String: AVAudioPlayer] = [:]
     private var bgmPlayer: AVAudioPlayer?
+    private var isBGMMuted: Bool = false
 
     private init() {
         do {
@@ -22,7 +25,8 @@ class SoundManager {
         }
     }
 
-    func play(_ name: String) {
+    func play(_ action: String) {
+        let name = soundTheme.soundName(for: action)
         preload(name)
         guard let player = players[name] else { return }
         player.stop()
@@ -48,7 +52,7 @@ class SoundManager {
         bgmPlayer?.stop()
         bgmPlayer = try? AVAudioPlayer(contentsOf: url)
         bgmPlayer?.numberOfLoops = -1
-        bgmPlayer?.volume = volume
+        bgmPlayer?.volume = isBGMMuted ? 0 : volume
         bgmPlayer?.prepareToPlay()
         bgmPlayer?.play()
     }
@@ -59,6 +63,7 @@ class SoundManager {
     }
 
     func setBGMMuted(_ muted: Bool, volume: Float = 0.5) {
+        isBGMMuted = muted
         bgmPlayer?.volume = muted ? 0 : volume
     }
 
@@ -74,9 +79,14 @@ class SoundManager {
     }
 
     private func urlFor(_ name: String) -> URL? {
-        ["wav", "mp3"].lazy.compactMap {
-            Bundle.main.url(forResource: name, withExtension: $0, subdirectory: "Sounds")
-            ?? Bundle.main.url(forResource: name, withExtension: $0)
+        let parts = name.split(separator: "/", omittingEmptySubsequences: true)
+        let fileName = String(parts.last ?? Substring(name))
+        let subdir = parts.count > 1
+            ? "Sounds/" + parts.dropLast().joined(separator: "/")
+            : "Sounds"
+        return ["wav", "mp3"].lazy.compactMap {
+            Bundle.main.url(forResource: fileName, withExtension: $0, subdirectory: subdir)
+            ?? Bundle.main.url(forResource: fileName, withExtension: $0)
         }.first
     }
 }

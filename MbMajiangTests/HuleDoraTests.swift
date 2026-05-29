@@ -223,3 +223,47 @@ struct CombinedDoraTests {
         #expect(regular + aka == 2)
     }
 }
+
+// MARK: - 副露に赤ドラが含まれる場合（バグ修正確認）
+
+@Suite("副露の赤ドラカウント")
+struct FulouAkaDoraTests {
+
+    @Test("順子副露に赤ドラ(m0)が含まれる → 赤ドラ1枚カウント（バグ修正確認）")
+    func shunziWithAkaDora() {
+        // m0(赤5)-m6-m7の順子副露 → fulouTiles = ["m067"]
+        // expandFulouTile → ["m0","m6","m7"]
+        let expanded = Hule.expandFulouTile("m067")
+        #expect(expanded.contains("m0"))
+        #expect(Hule.akaDoraCount(tiles: expanded) == 1)
+    }
+
+    @Test("刻子副露に赤ドラ(m0)が含まれる → 赤ドラ1枚カウント")
+    func keziWithAkaDora() {
+        // m0-m5-m5の刻子副露 → fulouTiles = ["m055"]
+        let expanded = Hule.expandFulouTile("m055")
+        #expect(expanded.contains("m0"))
+        #expect(Hule.akaDoraCount(tiles: expanded) == 1)
+    }
+
+    @Test("副露なしと赤ドラ順子副露で getYaku のドラ翻数が異なる")
+    func getYakuWithFulouAkaDora() {
+        // 手牌11枚: m2m2 p2p3p4 p3p4p5 s3s4s5 (ツモm2, 副露m0-m6-m7で断么九)
+        // 副露1つ(3枚) + 手牌11枚 = 14枚の有効なアガリ形
+        // withAka: ["m067"] = m0(赤5)-m6-m7, withoutAka: ["m567"] = m5-m6-m7
+        let tiles = ["m2","m2","p2","p3","p4","p3","p4","p5","s3","s4","s5"]
+        let ctx = HuleContext(
+            zhuangfeng: .東, menfeng: .南,
+            zimo: true, menqian: false,
+            lizhi: false, daburi: false, yifa: false,
+            qianggang: false, lingshang: false,
+            haidi: false, hedi: false, tianhu: false, dihu: false,
+            winTile: "m2"
+        )
+        let withAka    = Hule.getYaku(tiles: tiles, context: ctx, baopai: [], libaopai: [], fulouTiles: ["m067"])
+        let withoutAka = Hule.getYaku(tiles: tiles, context: ctx, baopai: [], libaopai: [], fulouTiles: ["m567"])
+        let akaFan    = withAka.yaku.first    { $0.name == "ドラ" }?.fanshu ?? 0
+        let noAkaFan  = withoutAka.yaku.first { $0.name == "ドラ" }?.fanshu ?? 0
+        #expect(akaFan == noAkaFan + 1)
+    }
+}

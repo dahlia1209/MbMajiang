@@ -42,6 +42,20 @@ struct Score {
             case .南四局, .終局: return .終局
             }
         }
+
+        var bgmName: String {
+            switch self {
+            case .東一局: return "GameBGM/tong1"
+            case .東二局: return "GameBGM/tong2"
+            case .東三局: return "GameBGM/tong3"
+            case .東四局: return "GameBGM/tong4"
+            case .南一局: return "GameBGM/nan1"
+            case .南二局: return "GameBGM/nan2"
+            case .南三局: return "GameBGM/nan3"
+            case .南四局: return "GameBGM/nan4"
+            case .終局:   return "GameBGM/nan4"
+            }
+        }
     }
     
     mutating func setQijia(qijia: Int) {

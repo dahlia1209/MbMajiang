@@ -62,7 +62,6 @@ class Player {
                 let tiles = self.shoupai.allLabels
                 if hasYaku(tiles: tiles, isZimo: true, status: status) {
                     buttons.insert(.zimo)
-                    buttons.insert(.cancel)
                 }
                 // 門前テンパイなら .lizhi を表示
                 if status.paishu >= 4 && canDeclareRiichi() {
@@ -412,12 +411,13 @@ class Player {
     
     func isFuriten(afterLizhiDiscards:[String]=[],junDiscards:[String]=[]) -> Bool {
         let currentTiles = shoupai.visibleLabels.map { Pai.normalize($0) }
-        let target = Set(he.qipai.map { $0.normalized } + afterLizhiDiscards + junDiscards)
+        let target = Set(he.qipai.map { $0.normalized } + he.calledPai.map { $0.normalized } + afterLizhiDiscards + junDiscards)
         //捨て牌にアガリ牌が含まれていないか確認
+        let fulouTiles = shoupai.fulouTiles
         return target.contains { label in
             let allTiles = currentTiles + [label]
             guard allTiles.count >= 2 && (allTiles.count - 2) % 3 == 0 else { return false }
-            return !Hule.winningDecompositions(allTiles).isEmpty
+            return !Hule.winningDecompositions(allTiles, fulouTiles).isEmpty
         }
     }
     

@@ -17,6 +17,8 @@ class Game: Identifiable {
     var board: Board
     var status: GameStatus
     var players: [Player]
+    var isFulouSkipEnabled: Bool = false
+
     var debugHands: [Int: [String]] = [:] {
         didSet { applyDebugHands() }
     }
@@ -47,6 +49,7 @@ class Game: Identifiable {
     // MARK: - Game Actions
     func kaiju() {
         status.phase = .kaiju
+        SoundManager.shared.soundTheme = settings.soundTheme
         // 配給原点を defen に反映
         for i in board.score.defen.indices {
             board.score.defen[i].1 = settings.haikyuGenten
@@ -124,6 +127,7 @@ class Game: Identifiable {
         huleCutInPlayer = idx
         huleCutInImageName = "zimo"
         status.hulePlayer = idx
+        primaryRonWinner = idx
         let context = buildHuleContext(player: idx, kind: .zimo)
         let result = buildHuleResult(playerIdx: idx, kind: .zimo, context: context, honba: board.score.honba, lizhibang: board.score.lizhibang, baseDefen: board.score.defen)
         pendingHuleResults.append(result)
@@ -283,6 +287,7 @@ class Game: Identifiable {
         status.player = fulouPlayer
         status.phase = .fulou
         status.junDiscards[fulouPlayer] = []
+        players.indices.forEach { players[$0].cancelYifa() }
         processLizhiPayments()
         advance()
     }
@@ -308,6 +313,7 @@ class Game: Identifiable {
         status.gangdoraFlag = .afterDapai
         status.phase = .lingshang
         status.junDiscards[fulouPlayer] = []
+        players.indices.forEach { players[$0].cancelYifa() }
         processLizhiPayments()
         advance()
     }
@@ -370,6 +376,7 @@ class Game: Identifiable {
         status.player = fulouPlayer
         status.phase = .fulou
         status.junDiscards[fulouPlayer] = []
+        players.indices.forEach { players[$0].cancelYifa() }
         processLizhiPayments()
         advance()
     }
@@ -380,9 +387,10 @@ class Game: Identifiable {
         players[status.player].angang()
         status.gangdoraFlag = .afterZimo
         status.phase = .lingshang
+        players.indices.forEach { players[$0].cancelYifa() }
         advance()
     }
-    
+
     func kagang() {
         SoundManager.shared.play("gang")
         showActionBanner("gang", player: status.player)
@@ -390,6 +398,7 @@ class Game: Identifiable {
         players[status.player].kagang()
         status.gangdoraFlag = .afterZimo
         status.phase = .kagang
+        players.indices.forEach { players[$0].cancelYifa() }
         advance()
     }
 
@@ -404,11 +413,26 @@ class Game: Identifiable {
     private func advance() {
         players.forEach { $0.callback(status: self.status) }
 
+        // 副露スキップ有効時、ロンなしの副露ボタンのみなら自動キャンセル
+        if isFulouSkipEnabled, let human = humanPlayer {
+            let fulouOnly: Set<PlayerButtonAction> = [.chi, .peng, .minggang, .cancel]
+            let actions = human.status.availableButtonActions
+            if !actions.isEmpty && !actions.contains(.rong) && actions.isSubset(of: fulouOnly) {
+                human.status.availableButtonActions = []
+                if status.phase == .dapai && (status.player + 1) % 4 == human.id {
+                    human.status.decision = .zimo
+                }
+            }
+        }
+
         if needsHumanInput() {
             // 人間プレイヤーの入力待ち: Player.onActionReady 経由でゲームループを再開
             humanPlayer?.onActionReady = { [weak self] in
+                self?.stopTurnTimer()
                 DispatchQueue.main.async { self?.processPlayerActions() }
             }
+            // 打牌番・ボタン選択（ポン/チー/ロン）どちらもタイマー開始
+            startTurnTimer()
         } else {
             DispatchQueue.main.async { [weak self] in self?.processPlayerActions() }
         }
@@ -596,8 +620,62 @@ class Game: Identifiable {
         }
     }
     
+    // MARK: - Turn Timer
+
+    var turnTimeRemaining: Double = 0
+    var isTurnTimerActive: Bool = false
+    private var turnTimer: Timer?
+
+    private func startTurnTimer() {
+        stopTurnTimer()
+        guard settings.turnTimeLimit > 0 else { return }
+        turnTimeRemaining = Double(settings.turnTimeLimit)
+        isTurnTimerActive = true
+        turnTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.turnTimeRemaining = max(0, self.turnTimeRemaining - 0.1)
+            if self.turnTimeRemaining <= 0 {
+                self.stopTurnTimer()
+                self.timeoutDapai()
+            }
+        }
+    }
+
+    func stopTurnTimer() {
+        isTurnTimerActive = false
+        turnTimer?.invalidate()
+        turnTimer = nil
+    }
+
+    private func timeoutDapai() {
+        guard let human = humanPlayer else { return }
+        let isDapaiTurn = status.player == human.id && (status.phase == .zimo || status.phase == .fulou)
+        let hasButtons = !human.status.availableButtonActions.isEmpty
+
+        if isDapaiTurn {
+            // .zimo: bingpai.countはツモ牌インデックス（zimo非nil）
+            // .fulou: zimo=nilのためbingpai.countは使えず、最後の牌(count-1)をデフォルトにする
+            let defaultIndex = status.phase == .fulou
+                ? human.shoupai.bingpai.count - 1
+                : human.shoupai.bingpai.count
+            let index = pendingDapaiIndex ?? defaultIndex
+            pendingDapaiIndex = nil
+            machiTiles = []
+            machiYakuSet = []
+            machiFuritenSet = []
+            human.selectDapai(index)
+        } else if hasButtons {
+            // 自動キャンセル: ポン/チー/ロンを辞退（.cancelと同じ処理）
+            human.status.availableButtonActions = []
+            if status.phase == .dapai && (status.player + 1) % 4 == human.id {
+                human.status.decision = .zimo
+            }
+            resolveHuman()
+        }
+    }
+
     // MARK: - Helpers
-    
+
     func getTongjia() -> Int {
         return board.score.defen.firstIndex(where: { $0.0 == .東 })!
     }
@@ -1183,8 +1261,12 @@ class Game: Identifiable {
     }
 
     private func shouldRenzhu(result: HuleResult, primaryWinner: Int?, dealerIdx: Int) -> Bool {
+        Game.renzhuDecision(result: result, primaryWinner: primaryWinner, dealerIdx: dealerIdx, renzhuFang: settings.renzhuFang)
+    }
+
+    static func renzhuDecision(result: HuleResult, primaryWinner: Int?, dealerIdx: Int, renzhuFang: GameSettings.RenzhuFang) -> Bool {
         let dealerTenpai = result.tenpaiPlayers.contains(dealerIdx)
-        switch settings.renzhuFang {
+        switch renzhuFang {
         case .none:
             return false
         case .hule:

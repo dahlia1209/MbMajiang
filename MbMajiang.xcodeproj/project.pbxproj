@@ -24,6 +24,7 @@
 		C42363D42FAEE73B00F14564 /* MbMajiangTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MbMajiangTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		C44D2E052F794428005E422C /* MbMajiang.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = MbMajiang.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		C49201C42F93B1E1001F8F64 /* CLAUDE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = CLAUDE.md; sourceTree = "<group>"; };
+		C4FA327D2FC2CE3400495E5B /* MbMajiang.xctestplan */ = {isa = PBXFileReference; lastKnownFileType = text; path = MbMajiang.xctestplan; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -73,6 +74,7 @@
 		C44D2DFC2F794428005E422C = {
 			isa = PBXGroup;
 			children = (
+				C4FA327D2FC2CE3400495E5B /* MbMajiang.xctestplan */,
 				C49201C42F93B1E1001F8F64 /* CLAUDE.md */,
 				C44D2E072F794428005E422C /* MbMajiang */,
 				C42363D52FAEE73B00F14564 /* MbMajiangTests */,

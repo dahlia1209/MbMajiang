@@ -47,7 +47,7 @@ struct BoardView: View {
 
     var body: some View {
         ZStack {
-            BackgroundLayer(imageName: "boardBackground")
+            BackgroundLayer(imageName: game.settings.boardTheme.imageName)
 
             VStack {
                 Spacer()
@@ -83,6 +83,19 @@ struct BoardView: View {
                         baopai: game.board.shan.wangpai.baopai.map { $0.normalized })
                 .offset(y: 290)
                 .rotationEffect(.degrees(90))
+
+            // 打牌カウントダウン
+            if game.isTurnTimerActive {
+                Text("\(max(0, Int(ceil(game.turnTimeRemaining))))")
+                    .font(.system(size: 32, weight: .bold, design: .monospaced))
+                    .foregroundColor(.white)
+                    .monospacedDigit()
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(Color.black.opacity(0.6))
+                    .clipShape(Capsule())
+                    .offset(x:230,y: 100)
+            }
 
             // プレイヤーアクションボタン
             if !displayedActions.isEmpty {
@@ -152,7 +165,17 @@ struct BoardView: View {
                     } label: {
                         Image(systemName: isBGMMuted ? "speaker.slash.fill" : "speaker.fill")
                             .font(.system(size: 16))
-                            .foregroundColor(isBGMMuted ? .white.opacity(0.4) : .white.opacity(0.7))
+                            .foregroundColor(isBGMMuted ? .white.opacity(0.7) : .yellow)
+                            .frame(width: 38, height: 38)
+                            .background(Color.black.opacity(0.4))
+                            .clipShape(Circle())
+                    }
+                    Button {
+                        game.isFulouSkipEnabled.toggle()
+                    } label: {
+                        Image(systemName: game.isFulouSkipEnabled ? "hand.raised.slash.fill" : "hand.raised.fill")
+                            .font(.system(size: 16))
+                            .foregroundColor(game.isFulouSkipEnabled ? .white.opacity(0.7) : .yellow)
                             .frame(width: 38, height: 38)
                             .background(Color.black.opacity(0.4))
                             .clipShape(Circle())
@@ -186,6 +209,7 @@ struct BoardView: View {
                 }
             }
         }
+        .environment(\.tileTheme, game.settings.tileTheme)
         .onTapGesture {
             game.pendingDapaiIndex = nil
             game.machiTiles = []
@@ -286,7 +310,7 @@ struct BoardView: View {
             if active { SoundManager.shared.stopBGM() }
         }
         .onChange(of: game.roundCutInRoundNames) { _, names in
-            if !names.isEmpty { SoundManager.shared.playBGM("majiang_bgm") }
+            if !names.isEmpty { SoundManager.shared.playBGM(game.board.score.round.bgmName) }
         }
         .alert("対局を終了しますか？", isPresented: $showQuitAlert) {
             Button("終了", role: .destructive) { dismiss() }
@@ -294,10 +318,11 @@ struct BoardView: View {
         }
         .onAppear {
             setupGame()
-            SoundManager.shared.playBGM("majiang_bgm")
+            SoundManager.shared.playBGM(game.board.score.round.bgmName)
         }
         .onDisappear {
             SoundManager.shared.stopBGM()
+            game.stopTurnTimer()
         }
     }
 

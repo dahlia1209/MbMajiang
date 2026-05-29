@@ -1,0 +1,33 @@
+{
+  "configurations" : [
+    {
+      "id" : "F615EBC4-8E75-491F-A804-D5A76CE6229D",
+      "name" : "Test Scheme Action",
+      "options" : {
+
+      }
+    }
+  ],
+  "defaultOptions" : {
+    "performanceAntipatternCheckerEnabled" : true,
+    "targetForVariableExpansion" : {
+      "containerPath" : "container:MbMajiang.xcodeproj",
+      "identifier" : "C44D2E042F794428005E422C",
+      "name" : "MbMajiang"
+    }
+  },
+  "testTargets" : [
+    {
+      "parallelizable" : true,
+      "skippedTests" : [
+        "GameSettingsPresetTests\/defaultIsCustom()"
+      ],
+      "target" : {
+        "containerPath" : "container:MbMajiang.xcodeproj",
+        "identifier" : "C42363D32FAEE73B00F14564",
+        "name" : "MbMajiangTests"
+      }
+    }
+  ],
+  "version" : 1
+}

@@ -46,6 +46,12 @@ final class GameSettings {
     var agariHaiDisplay: Bool = false
     var dapaiAssist: Bool = false
     var fulouAssist: Bool = false
+    var turnTimeLimit: Int = 0  // 0 = 無制限
+
+    // MARK: - テーマ
+    var tileTheme: TileTheme = .standard
+    var boardTheme: BoardTheme = .standard
+    var soundTheme: SoundTheme = .standard
 
     // MARK: - 役満
     var yakumanFukugouAri: Bool = true
@@ -56,6 +62,38 @@ final class GameSettings {
 
     // MARK: - Computed
     var junkiten1: Int { -(junikitenRanks.reduce(0, +)) }
+
+    // MARK: - Theme Enums
+
+    enum TileTheme: String, CaseIterable, Hashable {
+        case standard = "standard"
+
+        func imageName(for label: String) -> String {
+            switch self {
+            case .standard: return label
+            }
+        }
+    }
+
+    enum BoardTheme: String, CaseIterable, Hashable {
+        case standard = "standard"
+
+        var imageName: String {
+            switch self {
+            case .standard: return "boardBackground"
+            }
+        }
+    }
+
+    enum SoundTheme: String, CaseIterable, Hashable {
+        case standard = "standard"
+
+        func soundName(for action: String) -> String {
+            switch self {
+            case .standard: return action
+            }
+        }
+    }
 
     // MARK: - Persistence
     func save() {
@@ -90,12 +128,17 @@ final class GameSettings {
         ud.set(agariHaiDisplay, forKey: "agariHaiDisplay")
         ud.set(dapaiAssist, forKey: "dapaiAssist")
         ud.set(fulouAssist, forKey: "fulouAssist")
+        ud.set(turnTimeLimit, forKey: "turnTimeLimit")
         ud.set(yakumanFukugouAri, forKey: "yakumanFukugouAri")
         ud.set(doubleYakumanAri, forKey: "doubleYakumanAri")
         ud.set(kazoeYakumanAri, forKey: "kazoeYakumanAri")
         ud.set(yakumanPaoAri, forKey: "yakumanPaoAri")
         ud.set(kiriageMangan, forKey: "kiriageMangan")
         ud.set(cpuLevel.rawValue, forKey: "cpuLevel")
+        ud.set(selectedPreset.rawValue, forKey: "selectedPreset")
+        ud.set(tileTheme.rawValue, forKey: "tileTheme")
+        ud.set(boardTheme.rawValue, forKey: "boardTheme")
+        ud.set(soundTheme.rawValue, forKey: "soundTheme")
     }
 
     static func load() -> GameSettings {
@@ -135,12 +178,17 @@ final class GameSettings {
         s.agariHaiDisplay    = ud.bool(forKey: "agariHaiDisplay")
         s.dapaiAssist        = ud.bool(forKey: "dapaiAssist")
         s.fulouAssist        = ud.bool(forKey: "fulouAssist")
+        s.turnTimeLimit      = ud.object(forKey: "turnTimeLimit") != nil ? ud.integer(forKey: "turnTimeLimit") : 0
         s.yakumanFukugouAri  = ud.bool(forKey: "yakumanFukugouAri")
         s.doubleYakumanAri   = ud.bool(forKey: "doubleYakumanAri")
         s.kazoeYakumanAri    = ud.bool(forKey: "kazoeYakumanAri")
         s.yakumanPaoAri      = ud.bool(forKey: "yakumanPaoAri")
         s.kiriageMangan      = ud.bool(forKey: "kiriageMangan")
         s.cpuLevel           = CpuLevel(rawValue: ud.string(forKey: "cpuLevel") ?? "") ?? s.cpuLevel
+        s.selectedPreset     = Preset(rawValue: ud.string(forKey: "selectedPreset") ?? "") ?? .custom
+        s.tileTheme          = TileTheme(rawValue: ud.string(forKey: "tileTheme") ?? "") ?? .standard
+        s.boardTheme         = BoardTheme(rawValue: ud.string(forKey: "boardTheme") ?? "") ?? .standard
+        s.soundTheme         = SoundTheme(rawValue: ud.string(forKey: "soundTheme") ?? "") ?? .standard
         return s
     }
 
@@ -203,11 +251,7 @@ final class GameSettings {
         case custom  = "カスタム"
     }
 
-    var currentPreset: Preset {
-        if matchesTenhou()  { return .tenhou }
-        if matchesMleague() { return .mleague }
-        return .custom
-    }
+    var selectedPreset: Preset = .custom
 
     func applyPreset(_ preset: Preset) {
         switch preset {
@@ -215,6 +259,7 @@ final class GameSettings {
         case .mleague: applyMleague()
         case .custom:  break
         }
+        selectedPreset = preset
     }
 
     private func applyMleague() {
@@ -248,37 +293,6 @@ final class GameSettings {
         kiriageMangan        = true
     }
 
-    private func matchesMleague() -> Bool {
-        return haikyuGenten        == 25000
-            && junikitenRanks      == [10, -10, -30]
-            && junkitenRounding    == false
-            && renpuFu             == .two
-            && akadoraMan          == 1
-            && akadoraPin          == 1
-            && akadoraSou          == 1
-            && kuitanAri           == true
-            && kuichikaeLevel      == .none
-            && kyokuCount          == .hanjouSen
-            && tochukuryokuAri     == false
-            && nagashiManganAri    == false
-            && notenSengenAri      == true
-            && notenBatsuAri       == true
-            && dojiHuleMax         == .atamahane
-            && renzhuFang          == .tenpai
-            && tobiEndAri          == false
-            && ippatsuAri          == true
-            && uradoraAri          == true
-            && kandoraAri          == true
-            && kandoraNochigakeAri == false
-            && kanUraAri           == true
-            && riichiAnkanLevel    == .noChangeWaiting
-            && yakumanFukugouAri   == true
-            && doubleYakumanAri    == false
-            && kazoeYakumanAri     == false
-            && yakumanPaoAri       == true
-            && kiriageMangan       == true
-    }
-
     private func applyTenhou() {
         haikyuGenten         = 25000
         junikitenRanks       = [10, -10, -30]
@@ -310,34 +324,4 @@ final class GameSettings {
         kiriageMangan        = false
     }
 
-    private func matchesTenhou(doubleYakuman: Bool = true, kazoeYakuman: Bool = true, kiriage: Bool = false) -> Bool {
-        return haikyuGenten        == 25000
-            && junikitenRanks      == [10, -10, -30]
-            && junkitenRounding    == false
-            && renpuFu             == .two
-            && akadoraMan          == 1
-            && akadoraPin          == 1
-            && akadoraSou          == 1
-            && kuitanAri           == true
-            && kuichikaeLevel      == .none
-            && kyokuCount          == .hanjouSen
-            && tochukuryokuAri     == true
-            && nagashiManganAri    == false
-            && notenSengenAri      == false
-            && notenBatsuAri       == true
-            && dojiHuleMax         == .atamahane
-            && renzhuFang          == .tenpai
-            && tobiEndAri          == true
-            && ippatsuAri          == true
-            && uradoraAri          == true
-            && kandoraAri          == true
-            && kandoraNochigakeAri == false
-            && kanUraAri           == true
-            && riichiAnkanLevel    == .noChangeWaiting
-            && yakumanFukugouAri   == true
-            && doubleYakumanAri    == doubleYakuman
-            && kazoeYakumanAri     == kazoeYakuman
-            && yakumanPaoAri       == true
-            && kiriageMangan       == kiriage
-    }
 }

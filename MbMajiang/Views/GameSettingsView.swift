@@ -34,6 +34,7 @@ struct GameSettingsView: View {
                         boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
                         boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)
                         boolRow("手牌表示オプション", isOn: Bindable(settings).showHandDisplayOption)
+                        timeLimitRow
 
                         groupDivider
 
@@ -116,7 +117,7 @@ struct GameSettingsView: View {
         .fullScreenCover(item: $startedGame) { game in
             BoardView(game: game, debugActions: [])
         }
-        .onAppear { isLocked = settings.currentPreset != .custom }
+        .onAppear { isLocked = settings.selectedPreset != .custom }
         .onDisappear { settings.save() }
         .transaction { $0.disablesAnimations = true }
     }
@@ -225,9 +226,10 @@ struct GameSettingsView: View {
             HStack(spacing: 14) {
                 ForEach(GameSettings.Preset.allCases, id: \.self) { preset in
                     let isCustom   = preset == .custom
-                    let isSelected = isCustom ? !isLocked : (isLocked && settings.currentPreset == preset)
+                    let isSelected = isCustom ? !isLocked : (isLocked && settings.selectedPreset == preset)
                     Button {
                         if isCustom {
+                            settings.selectedPreset = .custom
                             isLocked = false
                         } else {
                             settings.applyPreset(preset)
@@ -378,6 +380,19 @@ struct GameSettingsView: View {
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 6).padding(.vertical, 3)
                 .background(fieldBackground)
+        }
+    }
+
+    private var timeLimitRow: some View {
+        let options: [(label: String, value: Int)] = [
+            ("なし", 0), ("5秒", 5), ("10秒", 10), ("20秒", 20)
+        ]
+        return row("制限時間") {
+            ForEach(options, id: \.value) { opt in
+                radioButton(opt.label, selected: settings.turnTimeLimit == opt.value) {
+                    settings.turnTimeLimit = opt.value
+                }
+            }
         }
     }
 

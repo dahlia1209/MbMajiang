@@ -9,71 +9,48 @@ import Testing
 @Suite("GameSettings Preset")
 struct GameSettingsPresetTests {
 
-    // MARK: - currentPreset
+    // MARK: - selectedPreset の初期値
 
-    @Test("デフォルト設定はカスタム")
+    @Test("デフォルトの selectedPreset はカスタム")
     func defaultIsCustom() {
         let s = GameSettings()
-        #expect(s.currentPreset == .mleague)
+        #expect(s.selectedPreset == .custom)
     }
 
-    @Test("天鳳プリセット適用後は currentPreset == .tenhou")
-    func applyTenhouMatchesTenhou() {
+    // MARK: - applyPreset で selectedPreset が切り替わる
+
+    @Test("天鳳プリセット適用後は selectedPreset == .tenhou")
+    func applyTenhouSetsSelected() {
         let s = GameSettings()
         s.applyPreset(.tenhou)
-        #expect(s.currentPreset == .tenhou)
+        #expect(s.selectedPreset == .tenhou)
     }
 
-    @Test("Mリーグプリセット適用後は currentPreset == .mleague")
-    func applyMleagueMatchesMleague() {
+    @Test("Mリーグプリセット適用後は selectedPreset == .mleague")
+    func applyMleagueSetsSelected() {
         let s = GameSettings()
         s.applyPreset(.mleague)
-        #expect(s.currentPreset == .mleague)
+        #expect(s.selectedPreset == .mleague)
     }
 
-    @Test("天鳳適用後に設定変更するとカスタムになる")
-    func tenhouThenChangeBecomesCustom() {
+    @Test("カスタム適用後は selectedPreset == .custom")
+    func applyCustomSetsSelected() {
         let s = GameSettings()
         s.applyPreset(.tenhou)
-        s.tobiEndAri = false  // 天鳳はtrue → falseに変更
-        #expect(s.currentPreset == .custom)
+        s.applyPreset(.custom)
+        #expect(s.selectedPreset == .custom)
     }
 
-    @Test("Mリーグ適用後に設定変更するとカスタムになる")
-    func mleagueThenChangeBecomesCustom() {
+    @Test("天鳳 → Mリーグと切り替えると selectedPreset が変わる")
+    func switchPreset() {
         let s = GameSettings()
+        s.applyPreset(.tenhou)
+        #expect(s.selectedPreset == .tenhou)
         s.applyPreset(.mleague)
-        s.notenSengenAri = false  // Mリーグはtrue → falseに変更
-        #expect(s.currentPreset == .custom)
+        #expect(s.selectedPreset == .mleague)
     }
 
-    // MARK: - 表示設定はプリセット判定に影響しない
-
-    @Test("天鳳適用後に打牌アシストをオンにしてもカスタムにならない")
-    func tenhouDisplaySettingDoesNotBreakPreset() {
-        let s = GameSettings()
-        s.applyPreset(.tenhou)
-        s.dapaiAssist = true
-        #expect(s.currentPreset == .tenhou)
-    }
-
-    @Test("Mリーグ適用後にアガリ牌表示をオンにしてもカスタムにならない")
-    func mleagueDisplaySettingDoesNotBreakPreset() {
-        let s = GameSettings()
-        s.applyPreset(.mleague)
-        s.agariHaiDisplay = true
-        #expect(s.currentPreset == .mleague)
-    }
-
-    @Test("天鳳適用後に手牌表示オプションを変更してもカスタムにならない")
-    func tenhouHandDisplayDoesNotBreakPreset() {
-        let s = GameSettings()
-        s.applyPreset(.tenhou)
-        s.showHandDisplayOption = true
-        #expect(s.currentPreset == .tenhou)
-    }
-
-    // MARK: - applyPreset の値確認
+    // MARK: - applyPreset で設定値が反映される
 
     @Test("天鳳プリセット: トビ終了あり")
     func tenhouTobiEnd() {
@@ -82,7 +59,7 @@ struct GameSettingsPresetTests {
         #expect(s.tobiEndAri == true)
     }
 
-    @Test("天鳳プリセット: ダブル役満あり")
+    @Test("天鳳プリセット: ダブル役満あり・切り上げ満貫なし")
     func tenhouDoubleYakuman() {
         let s = GameSettings()
         s.applyPreset(.tenhou)
@@ -106,12 +83,22 @@ struct GameSettingsPresetTests {
         #expect(s.kiriageMangan == true)
     }
 
-    @Test("天鳳とMリーグのプリセットは相互に区別される")
-    func tenhouAndMleagueAreDifferent() {
+    @Test("天鳳とMリーグで設定値が異なる")
+    func tenhouAndMleagueDiffer() {
+        let t = GameSettings(); t.applyPreset(.tenhou)
+        let m = GameSettings(); m.applyPreset(.mleague)
+        #expect(t.tobiEndAri != m.tobiEndAri)
+        #expect(t.tochukuryokuAri != m.tochukuryokuAri)
+        #expect(t.kiriageMangan != m.kiriageMangan)
+    }
+
+    // MARK: - 表示設定は selectedPreset に影響しない
+
+    @Test("天鳳適用後に打牌アシストを変えても selectedPreset は変わらない")
+    func displaySettingDoesNotChangePreset() {
         let s = GameSettings()
         s.applyPreset(.tenhou)
-        #expect(s.currentPreset != .mleague)
-        s.applyPreset(.mleague)
-        #expect(s.currentPreset != .tenhou)
+        s.dapaiAssist = true
+        #expect(s.selectedPreset == .tenhou)
     }
 }
