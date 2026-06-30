@@ -8,6 +8,7 @@ struct TitleView: View {
     @State private var blinkOpacity: Double = 1.0
     @State private var showMenu: Bool = false
     @State private var isSettingsPresented = false
+    @State private var isHowToPlayPresented = false
 
     var body: some View {
         ZStack {
@@ -42,7 +43,13 @@ struct TitleView: View {
         .fullScreenCover(isPresented: $isSettingsPresented) {
             GameSettingsView()
         }
+        .fullScreenCover(isPresented: $isHowToPlayPresented) {
+            HowToPlayView()
+        }
         .transaction(value: isSettingsPresented) { transaction in
+            transaction.disablesAnimations = true
+        }
+        .transaction(value: isHowToPlayPresented) { transaction in
             transaction.disablesAnimations = true
         }
     }
@@ -149,10 +156,15 @@ struct TitleView: View {
                 )
 
             // インラインメニュー
-            HStack(spacing: 12) {
-                menuButton("CPU戦") { isSettingsPresented = true }
-                menuButton("ネット対戦") { }
-                menuButton("設定") { }
+            VStack(spacing: 10) {
+                HStack(spacing: 12) {
+                    menuButton("CPU戦") { isSettingsPresented = true }
+                    menuButton("ネット対戦") { }
+                }
+                HStack(spacing: 12) {
+                    menuButton("遊び方") { isHowToPlayPresented = true }
+                    menuButton("設定") { }
+                }
             }
             .opacity(showMenu ? 1 : 0)
             .animation(.easeOut(duration: 0.25), value: showMenu)

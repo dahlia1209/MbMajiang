@@ -21,7 +21,7 @@ struct FulouGroupView: View {
     }
 
     var body: some View {
-        HStack(spacing: 0) {
+        HStack(alignment: .bottom,spacing: 0) {
             ForEach(group.indices, id: \.self) { i in
                 PaiView(pai: group[i])
                     .overlay {

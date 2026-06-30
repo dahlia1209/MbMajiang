@@ -66,11 +66,13 @@ final class GameSettings {
     // MARK: - Theme Enums
 
     enum TileTheme: String, CaseIterable, Hashable {
-        case standard = "standard"
+        case standard = "スタンダード"
+        case alternative = "タイプ2"
 
         func imageName(for label: String) -> String {
             switch self {
-            case .standard: return label
+            case .standard: return "pai/\(label)"
+            case .alternative: return "pai_2/\(label)"
             }
         }
     }

@@ -30,6 +30,7 @@ struct GameSettingsView: View {
                         groupDivider
 
                         sectionHeader("表示設定")
+                        radioRow("牌デザイン", selection: Bindable(settings).tileTheme)
                         boolRow("アガリ牌表示", isOn: Bindable(settings).agariHaiDisplay)
                         boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
                         boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)

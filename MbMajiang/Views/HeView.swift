@@ -17,19 +17,19 @@ struct HeView: View {
         let row3 = he.qipai.count > 12 ? Array(he.qipai[12...]) : []
 
         VStack(alignment: .leading, spacing: 0) {
-            HStack(spacing: 0) {
+            HStack(alignment: .bottom,spacing: 0) {
                 ForEach(row1.indices, id: \.self) { i in
                     paiCell(row1[i], globalIndex: i)
                 }
                 Spacer(minLength: 0)
             }
-            HStack(spacing: 0) {
+            HStack(alignment: .bottom,spacing: 0) {
                 ForEach(row2.indices, id: \.self) { i in
                     paiCell(row2[i], globalIndex: 6 + i)
                 }
                 Spacer(minLength: 0)
             }
-            HStack(spacing: 0) {
+            HStack(alignment: .bottom,spacing: 0) {
                 ForEach(row3.indices, id: \.self) { i in
                     paiCell(row3[i], globalIndex: 12 + i)
                 }
