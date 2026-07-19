@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Build
 
-This is a pure SwiftUI iOS app with no external dependencies. Build and run via Xcode (scheme: `MbMajiang`, target: iPad iOS 18.4+). There are no test targets and no linting config.
+This is a pure SwiftUI iOS app with no external dependencies. Build and run via Xcode (scheme: `MbMajiang`, target: iPhone iOS 26.4+, landscape orientation only). There are no test targets and no linting config.
 
 ```bash
 # Build from CLI (requires Xcode installed)
-xcodebuild -project MbMajiang.xcodeproj -scheme MbMajiang -destination 'platform=iOS Simulator,name=iPad (7th generation)' -configuration Debug build
+xcodebuild -project MbMajiang.xcodeproj -scheme MbMajiang -destination 'platform=iOS Simulator,name=iPhone 17 Pro' -configuration Debug build
 ```
 
 ## Architecture

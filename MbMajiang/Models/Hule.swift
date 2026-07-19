@@ -516,25 +516,34 @@ extension Hule {
         let decompositions = winningDecompositions(normalized,fulouTiles)
         guard !decompositions.isEmpty else { return (yaku: [], fu: 30) }
 
-        let candidates = decompositions.map { d -> ([Yaku], Int) in
+        let candidates = decompositions.map { d -> (yaku: [Yaku], fu: Int) in
             let d = context.zimo ? d : adjustForRon(d, winTile: context.winTile) //ロンアガリで刻子になった場合は明刻に補正
             let yaku = yakuForDecomposition(d, context: context, fulouBC: fulouBC)
             let fu = computeFu(decomposition: d, context: context)
             return (yaku, fu)
         }
-        
-        let best = candidates.max(by: {
-            $0.0.reduce(0) { $0 + $1.fanshu } < $1.0.reduce(0) { $0 + $1.fanshu }
-        })
-        var resultYaku = best?.0 ?? []
+
+        let best = selectBestCandidate(candidates)
+        var resultYaku = best?.yaku ?? []
         // ドラ・裏ドラは役あり確定後に追加（単独では和了不可）
         let maxFanshu = resultYaku.max(by: { $0.fanshu < $1.fanshu })?.fanshu ?? 0
           if maxFanshu > 0 && maxFanshu < 100   {
             if doraCnt    > 0 { resultYaku.append(Yaku(name: "ドラ",   fanshu: doraCnt))    }
             if uraDoraCnt > 0 { resultYaku.append(Yaku(name: "裏ドラ", fanshu: uraDoraCnt)) }
         }
-        return (yaku: resultYaku, fu: best?.1 ?? 30)
+        return (yaku: resultYaku, fu: best?.fu ?? 30)
     }
+
+    // 複数の分解候補から最有利な組み合わせを選ぶ: 翻数優先、翻数が同点なら符が高い方を採用
+    static func selectBestCandidate(_ candidates: [(yaku: [Yaku], fu: Int)]) -> (yaku: [Yaku], fu: Int)? {
+        candidates.max { a, b in
+            let aFan = a.yaku.reduce(0) { $0 + $1.fanshu }
+            let bFan = b.yaku.reduce(0) { $0 + $1.fanshu }
+            if aFan != bFan { return aFan < bFan }
+            return a.fu < b.fu
+        }
+    }
+
     // ロン時: アガリ牌で完成した刻子を暗刻→明刻に補正する
     private static func adjustForRon(_ d: BlockCounts, winTile: String) -> BlockCounts {
         guard winTile.count >= 2,
@@ -700,7 +709,6 @@ extension Hule {
     
     private static func checkDaburizhi(_ decomposition: BlockCounts, _ ctx: HuleContext) -> Yaku? {
         // 門前のみ。立直とは複合しない（代わりにこちらが適用される）
-        // TODO: daburi フラグを GameState 側でセットする
         guard ctx.daburi else { return nil }
         return Yaku(name: "ダブル立直", fanshu: 2)
     }

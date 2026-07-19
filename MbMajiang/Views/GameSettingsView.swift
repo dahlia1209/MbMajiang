@@ -5,115 +5,84 @@ struct GameSettingsView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var startedGame: Game? = nil
     @State private var isLocked = false
+    @State private var selectedCategory: SettingsCategory = .score
 
     private let gold      = Color(red: 0.8, green: 0.6, blue: 0.2)
     private let goldLight = Color(red: 1.0, green: 0.92, blue: 0.6)
     private let labelW: CGFloat = 148
+    private let sidebarW: CGFloat = 170
+    private let dividerW: CGFloat = 1
+
+    private enum SettingsCategory: String, CaseIterable, Identifiable {
+        case rule       = "基本設定"
+        case cpu        = "CPU設定"
+        case display    = "表示設定"
+        case score      = "点数設定"
+        case tile       = "牌設定"
+        case progress   = "進行設定"
+        case riichiDora = "立直・ドラ"
+        case yakuman    = "役満"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .rule:       return "list.bullet.rectangle"
+            case .cpu:        return "cpu"
+            case .display:    return "eye"
+            case .score:      return "number.square"
+            case .tile:       return "square.stack.3d.up"
+            case .progress:   return "flag.checkered"
+            case .riichiDora: return "sparkles"
+            case .yakuman:    return "crown"
+            }
+        }
+
+        var isLockable: Bool {
+            switch self {
+            case .score, .tile, .progress, .riichiDora, .yakuman: return true
+            case .rule, .cpu, .display: return false
+            }
+        }
+    }
 
     var body: some View {
-        ZStack {
-            BackgroundLayer()
+        GeometryReader { proxy in
+            ZStack {
+                BackgroundLayer()
 
-            VStack(spacing: 0) {
-                header
+                VStack(spacing: 0) {
+                    header
 
-                Divider()
-                    .background(gold.opacity(0.3))
-                    .padding(.horizontal, 60)
+                    Divider()
+                        .background(gold.opacity(0.3))
+                        .padding(.horizontal, 60)
 
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 16) {
+                    HStack(spacing: 0) {
+                        sidebar
+                            .frame(width: sidebarW)
+                            .layoutPriority(1)
 
-                        sectionHeader("CPU設定")
-                        radioRow("CPUの強さ", selection: Bindable(settings).cpuLevel)
+                        Rectangle()
+                            .fill(gold.opacity(0.15))
+                            .frame(width: dividerW)
 
-                        groupDivider
-
-                        sectionHeader("表示設定")
-                        radioRow("牌デザイン", selection: Bindable(settings).tileTheme)
-                        boolRow("アガリ牌表示", isOn: Bindable(settings).agariHaiDisplay)
-                        boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
-                        boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)
-                        boolRow("手牌表示オプション", isOn: Bindable(settings).showHandDisplayOption)
-                        timeLimitRow
-
-                        groupDivider
-
-                        sectionHeader("プリセット")
-                        presetRow
-
-                        groupDivider
-
-                        VStack(alignment: .leading, spacing: 16) {
-                            sectionHeader("点数設定")
-                            numberRow("配給原点",
-                                value: Binding(get: { settings.haikyuGenten },
-                                               set: { settings.haikyuGenten = $0 }))
-                            junikitenRow
-                            radioRow("連風牌", selection: Bindable(settings).renpuFu)
+                        let detailWidth = max(0, proxy.size.width - sidebarW - dividerW)
+                        ScrollView {
+                            categoryDetail(selectedCategory)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.horizontal, 40)
+                                .padding(.top, 24)
+                                .padding(.bottom, 40)
                         }
-                        .disabled(isLocked)
-                        .opacity(isLocked ? 0.4 : 1)
-
-                        groupDivider
-
-                        VStack(alignment: .leading, spacing: 16) {
-                            sectionHeader("牌設定")
-                            akadoraRow
-                            boolRow("クイタン", isOn: Bindable(settings).kuitanAri)
-                            radioRow("喰い替え", selection: Bindable(settings).kuichikaeLevel)
-                        }
-                        .disabled(isLocked)
-                        .opacity(isLocked ? 0.4 : 1)
-
-                        groupDivider
-
-                        VStack(alignment: .leading, spacing: 16) {
-                            sectionHeader("進行設定")
-                            radioRow("場数", selection: Bindable(settings).kyokuCount)
-                            boolRow("途中流局", isOn: Bindable(settings).tochukuryokuAri)
-                            boolRow("流し満貫", isOn: Bindable(settings).nagashiManganAri)
-                            boolRow("ノーテン宣言", isOn: Bindable(settings).notenSengenAri)
-                            boolRow("ノーテン罰", isOn: Bindable(settings).notenBatsuAri)
-                            radioRow("同時和了", selection: Bindable(settings).dojiHuleMax)
-                            radioRow("連荘方式", selection: Bindable(settings).renzhuFang)
-                            boolRow("トビ終了", isOn: Bindable(settings).tobiEndAri)
-                        }
-                        .disabled(isLocked)
-                        .opacity(isLocked ? 0.4 : 1)
-
-                        groupDivider
-
-                        VStack(alignment: .leading, spacing: 16) {
-                            sectionHeader("立直・ドラ")
-                            boolRow("一発", isOn: Bindable(settings).ippatsuAri)
-                            boolRow("裏ドラ", isOn: Bindable(settings).uradoraAri)
-                            kandoraRow
-                            boolRow("カン裏", isOn: Bindable(settings).kanUraAri)
-                            radioRow("リーチ後の暗槓", selection: Bindable(settings).riichiAnkanLevel)
-                        }
-                        .disabled(isLocked)
-                        .opacity(isLocked ? 0.4 : 1)
-
-                        groupDivider
-
-                        VStack(alignment: .leading, spacing: 16) {
-                            sectionHeader("役満")
-                            boolRow("役満の複合", isOn: Bindable(settings).yakumanFukugouAri)
-                            boolRow("ダブル役満", isOn: Bindable(settings).doubleYakumanAri)
-                            boolRow("数え役満", isOn: Bindable(settings).kazoeYakumanAri)
-                            boolRow("役満パオ", isOn: Bindable(settings).yakumanPaoAri)
-                            boolRow("切り上げ満貫", isOn: Bindable(settings).kiriageMangan)
-                        }
-                        .disabled(isLocked)
-                        .opacity(isLocked ? 0.4 : 1)
+                        .frame(width: detailWidth)
+                        .clipped()
                     }
-                    .padding(.horizontal, 60)
-                    .padding(.top, 20)
-                }
 
-                footer
+                    footer
+                }
             }
+            .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .fullScreenCover(item: $startedGame) { game in
             BoardView(game: game, debugActions: [])
@@ -141,7 +110,7 @@ struct GameSettingsView: View {
 
             Spacer()
 
-            Text("SETTINGS")
+            Text("対局ルール")
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
                 .foregroundStyle(gold)
                 .tracking(6)
@@ -153,25 +122,156 @@ struct GameSettingsView: View {
         .frame(height: 44)
     }
 
-    // MARK: - Section / Group
+    // MARK: - Sidebar (Finder-style list)
 
-    private func sectionHeader(_ title: String) -> some View {
-        HStack(spacing: 8) {
-            Text(title)
-                .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                .foregroundStyle(gold.opacity(0.8))
-                .tracking(3)
-            Rectangle()
-                .fill(gold.opacity(0.25))
-                .frame(height: 0.5)
+    private var sidebar: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 2) {
+                sidebarRow(.rule)
+
+                Rectangle()
+                    .fill(gold.opacity(0.15))
+                    .frame(height: 1)
+                    .padding(.vertical, 6)
+
+                ForEach(SettingsCategory.allCases.filter { $0 != .rule }) { category in
+                    sidebarRow(category)
+                }
+            }
+            .padding(8)
+        }
+        .background(Color.black.opacity(0.15))
+    }
+
+    private func sidebarRow(_ category: SettingsCategory) -> some View {
+        let isSelected = selectedCategory == category
+        return Button {
+            selectedCategory = category
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: category.icon)
+                    .font(.system(size: 12))
+                    .frame(width: 16)
+                    .foregroundStyle(isSelected ? goldLight : gold.opacity(0.6))
+                Text(category.rawValue)
+                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
+                    .foregroundStyle(isSelected ? goldLight : goldLight.opacity(0.65))
+                Spacer()
+                if category.isLockable && isLocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 9))
+                        .foregroundStyle(gold.opacity(0.4))
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? gold.opacity(0.22) : Color.clear)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: - Detail (Preview area)
+
+    @ViewBuilder
+    private func categoryDetail(_ category: SettingsCategory) -> some View {
+        switch category {
+        case .rule:       ruleDetail
+        case .cpu:        cpuDetail
+        case .display:    displayDetail
+        case .score:      scoreDetail
+        case .tile:       tileDetail
+        case .progress:   progressDetail
+        case .riichiDora: riichiDoraDetail
+        case .yakuman:    yakumanDetail
         }
     }
 
-    private var groupDivider: some View {
-        Rectangle()
-            .fill(gold.opacity(0.12))
-            .frame(height: 1)
-            .padding(.vertical, 4)
+    private var ruleDetail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            radioRow("局数", selection: Bindable(settings).kyokuCount)
+            timeLimitRow
+            presetRow
+        }
+    }
+
+    private var cpuDetail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            radioRow("CPUの強さ", selection: Bindable(settings).cpuLevel)
+        }
+    }
+
+    private var displayDetail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            radioRow("牌デザイン", selection: Bindable(settings).tileTheme)
+            boolRow("アガリ牌表示", isOn: Bindable(settings).agariHaiDisplay)
+            boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
+            boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)
+            boolRow("手牌表示オプション", isOn: Bindable(settings).showHandDisplayOption)
+        }
+    }
+
+    private var scoreDetail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            numberRow("配給原点",
+                value: Binding(get: { settings.haikyuGenten },
+                               set: { settings.haikyuGenten = $0 }))
+            junikitenRow
+            radioRow("連風牌", selection: Bindable(settings).renpuFu)
+        }
+        .disabled(isLocked)
+        .opacity(isLocked ? 0.4 : 1)
+    }
+
+    private var tileDetail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            akadoraRow
+            boolRow("クイタン", isOn: Bindable(settings).kuitanAri)
+            radioRow("喰い替え", selection: Bindable(settings).kuichikaeLevel)
+        }
+        .disabled(isLocked)
+        .opacity(isLocked ? 0.4 : 1)
+    }
+
+    private var progressDetail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            boolRow("途中流局", isOn: Bindable(settings).tochukuryokuAri)
+            boolRow("流し満貫", isOn: Bindable(settings).nagashiManganAri)
+            boolRow("ノーテン宣言", isOn: Bindable(settings).notenSengenAri)
+            boolRow("ノーテン罰", isOn: Bindable(settings).notenBatsuAri)
+            radioRow("同時和了", selection: Bindable(settings).dojiHuleMax)
+            radioRow("連荘方式", selection: Bindable(settings).renzhuFang)
+            boolRow("トビ終了", isOn: Bindable(settings).tobiEndAri)
+        }
+        .disabled(isLocked)
+        .opacity(isLocked ? 0.4 : 1)
+    }
+
+    private var riichiDoraDetail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            boolRow("一発", isOn: Bindable(settings).ippatsuAri)
+            boolRow("裏ドラ", isOn: Bindable(settings).uradoraAri)
+            kandoraRow
+            boolRow("カン裏", isOn: Bindable(settings).kanUraAri)
+            radioRow("リーチ後の暗槓", selection: Bindable(settings).riichiAnkanLevel)
+        }
+        .disabled(isLocked)
+        .opacity(isLocked ? 0.4 : 1)
+    }
+
+    private var yakumanDetail: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            boolRow("役満の複合", isOn: Bindable(settings).yakumanFukugouAri)
+            boolRow("ダブル役満", isOn: Bindable(settings).doubleYakumanAri)
+            boolRow("数え役満", isOn: Bindable(settings).kazoeYakumanAri)
+            boolRow("役満パオ", isOn: Bindable(settings).yakumanPaoAri)
+            boolRow("切り上げ満貫", isOn: Bindable(settings).kiriageMangan)
+        }
+        .disabled(isLocked)
+        .opacity(isLocked ? 0.4 : 1)
     }
 
     // MARK: - Generic Row Builders
@@ -385,16 +485,7 @@ struct GameSettingsView: View {
     }
 
     private var timeLimitRow: some View {
-        let options: [(label: String, value: Int)] = [
-            ("なし", 0), ("5秒", 5), ("10秒", 10), ("20秒", 20)
-        ]
-        return row("制限時間") {
-            ForEach(options, id: \.value) { opt in
-                radioButton(opt.label, selected: settings.turnTimeLimit == opt.value) {
-                    settings.turnTimeLimit = opt.value
-                }
-            }
-        }
+        radioRow("長考時間", selection: Bindable(settings).thinkingTimeMode)
     }
 
     private var fieldBackground: some View {

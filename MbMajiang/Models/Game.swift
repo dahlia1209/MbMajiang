@@ -80,6 +80,8 @@ class Game: Identifiable {
 
     func qipai() {
         status.phase = .qipai
+        // 局が変わるたびに持ち時間をリセット（一局単位の持ち時間）
+        totalTimeRemaining = Double(settings.totalTimeBank)
         status.dapai = nil
         status.zimo = nil
 
@@ -220,6 +222,11 @@ class Game: Identifiable {
         advance()
     }
     
+    // ダブル立直判定: 打牌者にとって最初の打牌であり、かつ全員が副露（暗槓含む）していないこと
+    static func computeIsDaburi(isFirstDiscard: Bool, players: [Player]) -> Bool {
+        isFirstDiscard && players.allSatisfy { $0.shoupai.fulou.isEmpty }
+    }
+
     func dapai() {
         status.phase = .dapai
         infoMessage = nil
@@ -238,8 +245,7 @@ class Game: Identifiable {
 
         // リーチ宣言打牌の後処理
         if players[player].status.isSelectingRiichi {
-            let isDaburi = isFirstDiscard && players.allSatisfy { $0.shoupai.fulou.isEmpty }
-            players[player].status.isDaburi = isDaburi
+            players[player].status.isDaburi = Game.computeIsDaburi(isFirstDiscard: isFirstDiscard, players: players)
             SoundManager.shared.play("lizhi")
             players[player].pendingLizhi()
             lizhiCutInPlayer = player
@@ -470,17 +476,23 @@ class Game: Identifiable {
             // 暗槓
             if let actor = players.first(where: { $0.id == status.player && $0.status.decision == .angang }) {
                 actor.consumeDecision()
-                // TODO: 合計カン数が4以上の場合は暗槓を不可にする
-                // → isGangFull なら (actor as? AIPlayer)?.selectDapai() して dapai() に切り替える
-                angang()
+                if isGangFull {
+                    (actor as? AIPlayer)?.selectDapai()
+                    dapai()
+                } else {
+                    angang()
+                }
                 return
             }
             // 加槓
             if let actor = players.first(where: { $0.id == status.player && $0.status.decision == .kagang }) {
                 actor.consumeDecision()
-                // TODO: 合計カン数が4以上の場合は加槓を不可にする
-                // → isGangFull なら (actor as? AIPlayer)?.selectDapai() して dapai() に切り替える
-                kagang()
+                if isGangFull {
+                    (actor as? AIPlayer)?.selectDapai()
+                    dapai()
+                } else {
+                    kagang()
+                }
                 return
             }
             
@@ -508,30 +520,23 @@ class Game: Identifiable {
             let hulers = players.filter { $0.status.decision == .hule }
             if !hulers.isEmpty {
                 hulers.forEach { $0.consumeDecision() }
-                let discarder = status.player
-                let sorted = hulers.sorted { ($0.id - discarder + 4) % 4 < ($1.id - discarder + 4) % 4 }
-                let maxWinners: Int
-                switch settings.dojiHuleMax {
-                case .atamahane: maxWinners = 1
-                case .doubleRon: maxWinners = 2
-                case .tripleRon: maxWinners = 3
-                }
-                if hulers.count == 3 && maxWinners == 2 {
+                switch Game.resolveDojiHule(hulerIds: hulers.map { $0.id }, discarder: status.player, dojiHuleMax: settings.dojiHuleMax) {
+                case .sanchahou:
                     pingju(kind: .sanchahou)
-                    return
+                case .winners(let winnerIds):
+                    ronHule(winnerIds)
                 }
-                let winners = Array(sorted.prefix(maxWinners))
-                ronHule(winners.map { $0.id })
                 return
             }
-            
+
             // カン宣言
             if let fulouPlayer = players.first(where: { $0.status.decision == .minggang }) {
                 fulouPlayer.consumeDecision()
-                // TODO: 合計カン数が4以上の場合は明槓を不可にする
-                // → isGangFull なら fulouPlayer.decision を .none に戻して次のアクション判定へ
-                minggang(player: fulouPlayer.id)
-                return
+                if !isGangFull {
+                    minggang(player: fulouPlayer.id)
+                    return
+                }
+                // 5回目のカンは不可: 明槓せず次のアクション判定（ポン・チーなど）へ進む
             }
             
             // ポン（副露）宣言
@@ -580,16 +585,12 @@ class Game: Identifiable {
             let hulers = players.filter { $0.status.decision == .hule }
             if !hulers.isEmpty {
                 hulers.forEach { $0.consumeDecision() }
-                let discarder = status.player
-                let sorted = hulers.sorted { ($0.id - discarder + 4) % 4 < ($1.id - discarder + 4) % 4 }
-                let maxWinners: Int
-                switch settings.dojiHuleMax {
-                case .atamahane: maxWinners = 1
-                case .doubleRon: maxWinners = 2
-                case .tripleRon: maxWinners = 3
+                switch Game.resolveDojiHule(hulerIds: hulers.map { $0.id }, discarder: status.player, dojiHuleMax: settings.dojiHuleMax) {
+                case .sanchahou:
+                    pingju(kind: .sanchahou)
+                case .winners(let winnerIds):
+                    ronHule(winnerIds)
                 }
-                let winners = Array(sorted.prefix(maxWinners))
-                ronHule(winners.map { $0.id })
             } else {
                 status.phase = .lingshang
                 lingshangzimo()
@@ -623,20 +624,55 @@ class Game: Identifiable {
     // MARK: - Turn Timer
 
     var turnTimeRemaining: Double = 0
+    // 一局ごとに減り続ける持ち時間（0 = 無制限。局が変わるたびに qipai() で設定値をセット）
+    var totalTimeRemaining: Double = 0
     var isTurnTimerActive: Bool = false
     private var turnTimer: Timer?
 
     private func startTurnTimer() {
         stopTurnTimer()
-        guard settings.turnTimeLimit > 0 else { return }
-        turnTimeRemaining = Double(settings.turnTimeLimit)
+        let hasBank = settings.totalTimeBank > 0
+        let bankAvailable = hasBank && totalTimeRemaining > 0
+        // 持ち時間がまだ残っている間は一打の猶予（bank300では0＝即座に持ち時間を消費）、
+        // 使い切った後は秒読み（postBankTimeLimit）を適用する
+        let currentLimit = !hasBank ? settings.turnTimeLimit : (bankAvailable ? settings.turnTimeLimit : settings.postBankTimeLimit)
+        guard currentLimit > 0 || bankAvailable else { return }
+        turnTimeRemaining = Double(currentLimit)
         isTurnTimerActive = true
         turnTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { [weak self] _ in
             guard let self else { return }
-            self.turnTimeRemaining = max(0, self.turnTimeRemaining - 0.1)
-            if self.turnTimeRemaining <= 0 {
-                self.stopTurnTimer()
-                self.timeoutDapai()
+            let hasBank = self.settings.totalTimeBank > 0
+            let bankAvailable = hasBank && self.totalTimeRemaining > 0
+
+            if !hasBank {
+                // 持ち時間なし: 一打の制限時間のみ
+                self.turnTimeRemaining = max(0, self.turnTimeRemaining - 0.1)
+                if self.turnTimeRemaining <= 0 {
+                    self.stopTurnTimer()
+                    self.timeoutDapai()
+                }
+            } else if bankAvailable {
+                // 持ち時間が残っている間: 一打の猶予を使い切ってから持ち時間を消費
+                if self.settings.turnTimeLimit > 0 && self.turnTimeRemaining > 0 {
+                    self.turnTimeRemaining = max(0, self.turnTimeRemaining - 0.1)
+                } else {
+                    self.totalTimeRemaining = max(0, self.totalTimeRemaining - 0.1)
+                    if self.totalTimeRemaining <= 0 {
+                        // 持ち時間を使い切った: 以降は秒読みに切り替える
+                        self.turnTimeRemaining = Double(self.settings.postBankTimeLimit)
+                        if self.settings.postBankTimeLimit <= 0 {
+                            self.stopTurnTimer()
+                            self.timeoutDapai()
+                        }
+                    }
+                }
+            } else {
+                // 持ち時間を使い切った後の秒読み
+                self.turnTimeRemaining = max(0, self.turnTimeRemaining - 0.1)
+                if self.turnTimeRemaining <= 0 {
+                    self.stopTurnTimer()
+                    self.timeoutDapai()
+                }
             }
         }
     }
@@ -734,10 +770,10 @@ class Game: Identifiable {
             human.status.decision = .hule
             resolveHuman()
         case .kyuushu:
-            if settings.tochukuryokuAri {
+            if canDeclareKyuushu() {
                 pingju(kind: .kyuushu)
             }
-            // tochukuryokuAri = false の場合はボタンが消えるだけ（打牌で続行）
+            // 条件を満たさない場合はボタンが消えるだけ（打牌で続行）
         case .rong:
             if human.isFuriten(
                 afterLizhiDiscards: status.afterLizhiDiscards[human.id],
@@ -761,8 +797,7 @@ class Game: Identifiable {
             }
             
         case .minggang:
-            let gangCounts = (players.map { $0.shoupai.gangCount }).reduce(0, +)
-            if gangCounts >= 4 {
+            if isGangFull {
                 infoMessage = "5回目のカンは不可"
                 return
             }
@@ -777,8 +812,7 @@ class Game: Identifiable {
                 human.startChiSelection()
             }
         case .angang:
-            let gangCounts = (players.map { $0.shoupai.gangCount }).reduce(0, +)
-            if gangCounts >= 4 {
+            if isGangFull {
                 infoMessage = "5回目のカンは不可"
                 return
             }
@@ -792,8 +826,7 @@ class Game: Identifiable {
                 resolveHuman()
             }
         case .kagang:
-            let gangCounts = (players.map { $0.shoupai.gangCount }).reduce(0, +)
-            if gangCounts >= 4 {
+            if isGangFull {
                 infoMessage = "5回目のカンは不可"
                 return
             }
@@ -1282,7 +1315,35 @@ class Game: Identifiable {
         }
     }
 
-    private func isSuukanSanyou() -> Bool {
+    // 合計カン数が4に達しているか（5回目以降のカンは不可）
+    var isGangFull: Bool {
+        players.map { $0.shoupai.gangCount }.reduce(0, +) >= 4
+    }
+
+    // 同時ロン時の解決結果: 通常のロン・槍槓ロンの両方で共通利用する
+    nonisolated enum DojiHuleResolution: Equatable {
+        case winners([Int])
+        case sanchahou
+    }
+
+    // 同時ロンの勝者を決定する（放銃者から見た巡り順優先、3人ロンかつ2人までの設定なら三家和）
+    nonisolated static func resolveDojiHule(
+        hulerIds: [Int], discarder: Int, dojiHuleMax: GameSettings.DojiHuleMax
+    ) -> DojiHuleResolution {
+        let sorted = hulerIds.sorted { ($0 - discarder + 4) % 4 < ($1 - discarder + 4) % 4 }
+        let maxWinners: Int
+        switch dojiHuleMax {
+        case .atamahane: maxWinners = 1
+        case .doubleRon: maxWinners = 2
+        case .tripleRon: maxWinners = 3
+        }
+        if hulerIds.count == 3 && maxWinners == 2 {
+            return .sanchahou
+        }
+        return .winners(Array(sorted.prefix(maxWinners)))
+    }
+
+    func isSuukanSanyou() -> Bool {
         guard settings.tochukuryokuAri else { return false }
         let gangCounts = players.map { $0.shoupai.gangCount }
         let total = gangCounts.reduce(0, +)
@@ -1290,18 +1351,24 @@ class Game: Identifiable {
         return !gangCounts.contains(4)
     }
 
-    private func isSuuchaRiichi() -> Bool {
+    func isSuuchaRiichi() -> Bool {
         guard settings.tochukuryokuAri else { return false }
         return players.allSatisfy { $0.status.isLizhi }
     }
 
-    private func isSuufon() -> Bool {
+    func isSuufon() -> Bool {
         guard settings.tochukuryokuAri else { return false }
         guard players.allSatisfy({ $0.status.firstDapai != nil }) else { return false }
         guard players.allSatisfy({ $0.shoupai.fulou.isEmpty }) else { return false }
         let windTiles: Set<String> = ["z1", "z2", "z3", "z4"]
         guard let first = players[0].status.firstDapai, windTiles.contains(first) else { return false }
         return players.allSatisfy { $0.status.firstDapai == first }
+    }
+
+    // 九種九牌が宣言可能か: 途中流局が有効、かつ誰もまだ副露していないこと（最初の一巡が乱れていないこと）
+    func canDeclareKyuushu() -> Bool {
+        guard settings.tochukuryokuAri else { return false }
+        return players.allSatisfy { $0.shoupai.fulou.isEmpty }
     }
 
     private func isGameOver() -> Bool {
@@ -1313,8 +1380,6 @@ class Game: Identifiable {
             return board.score.round == .南一局 || board.score.round == .終局
         case .hanjouSen:
             return board.score.round == .終局
-        case .ichangSen:
-            return board.score.round == .終局  // 西・北局は未実装のため東南戦と同じ
         }
     }
 

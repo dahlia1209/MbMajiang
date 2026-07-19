@@ -46,7 +46,30 @@ final class GameSettings {
     var agariHaiDisplay: Bool = false
     var dapaiAssist: Bool = false
     var fulouAssist: Bool = false
-    var turnTimeLimit: Int = 0  // 0 = 無制限
+    var thinkingTimeMode: ThinkingTimeMode = .unlimited
+
+    // 一打あたりの制限時間（秒）。0 = 無制限。持ち時間がある間はこの猶予を使い切ってから持ち時間を消費する
+    var turnTimeLimit: Int {
+        switch thinkingTimeMode {
+        case .unlimited: return 0
+        case .perMove10: return 10
+        case .bank300:   return 0
+        }
+    }
+    // 一局あたりの持ち時間（秒）。0 = 無制限（持ち時間なし）
+    var totalTimeBank: Int {
+        switch thinkingTimeMode {
+        case .bank300: return 300
+        default:       return 0
+        }
+    }
+    // 持ち時間を使い切った後の一打あたりの制限時間（秒）
+    var postBankTimeLimit: Int {
+        switch thinkingTimeMode {
+        case .bank300: return 5
+        default:       return 0
+        }
+    }
 
     // MARK: - テーマ
     var tileTheme: TileTheme = .standard
@@ -130,7 +153,7 @@ final class GameSettings {
         ud.set(agariHaiDisplay, forKey: "agariHaiDisplay")
         ud.set(dapaiAssist, forKey: "dapaiAssist")
         ud.set(fulouAssist, forKey: "fulouAssist")
-        ud.set(turnTimeLimit, forKey: "turnTimeLimit")
+        ud.set(thinkingTimeMode.rawValue, forKey: "thinkingTimeMode")
         ud.set(yakumanFukugouAri, forKey: "yakumanFukugouAri")
         ud.set(doubleYakumanAri, forKey: "doubleYakumanAri")
         ud.set(kazoeYakumanAri, forKey: "kazoeYakumanAri")
@@ -180,7 +203,7 @@ final class GameSettings {
         s.agariHaiDisplay    = ud.bool(forKey: "agariHaiDisplay")
         s.dapaiAssist        = ud.bool(forKey: "dapaiAssist")
         s.fulouAssist        = ud.bool(forKey: "fulouAssist")
-        s.turnTimeLimit      = ud.object(forKey: "turnTimeLimit") != nil ? ud.integer(forKey: "turnTimeLimit") : 0
+        s.thinkingTimeMode   = ThinkingTimeMode(rawValue: ud.string(forKey: "thinkingTimeMode") ?? "") ?? s.thinkingTimeMode
         s.yakumanFukugouAri  = ud.bool(forKey: "yakumanFukugouAri")
         s.doubleYakumanAri   = ud.bool(forKey: "doubleYakumanAri")
         s.kazoeYakumanAri    = ud.bool(forKey: "kazoeYakumanAri")
@@ -209,8 +232,13 @@ final class GameSettings {
     enum KyokuCount: String, CaseIterable, Hashable {
         case ikkokuSen = "一局戦"
         case tonpuSen  = "東風戦"
-        case hanjouSen = "東南戦"
-        case ichangSen = "一荘戦"
+        case hanjouSen = "半荘戦"
+    }
+
+    enum ThinkingTimeMode: String, CaseIterable, Hashable {
+        case unlimited = "無制限"
+        case perMove10 = "一打10秒"
+        case bank300   = "持ち時間300秒"
     }
 
     enum KuichikaeLevel: String, CaseIterable, Hashable {

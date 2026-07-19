@@ -86,4 +86,44 @@ struct FuritenTests {
         let player = makeFulouTenpaiPlayer(he: he)
         #expect(player.isFuriten() == false)
     }
+
+    // MARK: - リーチ後の永続フリテン（afterLizhiDiscards）
+
+    @Test("リーチ後に見逃したアガリ牌がafterLizhiDiscardsにある → 現在の捨て牌に関係なくフリテン")
+    func permanentFuritenAfterMissedRon() {
+        let he = He(qipai: [Pai("p5")])  // 自分の捨て牌自体にはアガリ牌なし
+        let player = makeTenpaiPlayer(he: he)
+        // リーチ後の巡でz1（アガリ牌）を見逃した記録がある
+        #expect(player.isFuriten(afterLizhiDiscards: ["z1"]) == true)
+    }
+
+    @Test("afterLizhiDiscardsを渡さなければ同じ状況でもフリテンにならない（比較用）")
+    func sameHandWithoutAfterLizhiDiscardsIsNotFuriten() {
+        let he = He(qipai: [Pai("p5")])
+        let player = makeTenpaiPlayer(he: he)
+        #expect(player.isFuriten() == false)
+    }
+
+    @Test("afterLizhiDiscardsにアガリ牌以外が入っていてもフリテンにならない")
+    func afterLizhiDiscardsWithNonWinningTileIsNotFuriten() {
+        let he = He(qipai: [Pai("p5")])
+        let player = makeTenpaiPlayer(he: he)
+        #expect(player.isFuriten(afterLizhiDiscards: ["p9"]) == false)
+    }
+
+    // MARK: - 同巡フリテン（junDiscards）
+
+    @Test("同巡内で他家がアガリ牌を捨てて見逃した場合もフリテン")
+    func temporaryFuritenWithJunDiscards() {
+        let he = He(qipai: [Pai("p5")])
+        let player = makeTenpaiPlayer(he: he)
+        #expect(player.isFuriten(junDiscards: ["z1"]) == true)
+    }
+
+    @Test("junDiscardsにアガリ牌以外が入っていてもフリテンにならない")
+    func junDiscardsWithNonWinningTileIsNotFuriten() {
+        let he = He(qipai: [Pai("p5")])
+        let player = makeTenpaiPlayer(he: he)
+        #expect(player.isFuriten(junDiscards: ["p9"]) == false)
+    }
 }

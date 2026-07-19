@@ -84,14 +84,18 @@ struct BoardView: View {
                 .offset(y: 290)
                 .rotationEffect(.degrees(90))
 
-            // 打牌カウントダウン
+            // 打牌カウントダウン（一打10秒モードは一打の残り時間、持ち時間モードは持ち時間。持ち時間を使い切った後は秒読み中の一打を表示）
             if game.isTurnTimerActive {
-                Text("\(max(0, Int(ceil(game.turnTimeRemaining))))")
-                    .font(.system(size: 32, weight: .bold, design: .monospaced))
+                let total = max(0, Int(ceil(game.totalTimeRemaining)))
+                let turn = max(0, Int(ceil(game.turnTimeRemaining)))
+                let hasBank = game.settings.totalTimeBank > 0
+                let label = (hasBank && total > 0) ? "\(total)" : "\(turn)"
+                Text(label)
+                    .font(.system(size: 18, weight: .bold, design: .monospaced))
                     .foregroundColor(.white)
                     .monospacedDigit()
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 8)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
                     .background(Color.black.opacity(0.6))
                     .clipShape(Capsule())
                     .offset(x:230,y: 100)
