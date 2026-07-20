@@ -341,7 +341,7 @@ class Player {
         status.forbiddenDapaiLabels = kuichikaeLabels(fulou: shoupai.fulou[0], isChi: true, level: kuichikaeLevel)
     }
 
-    private func kuichikaeLabels(fulou: [Pai], isChi: Bool, level: GameSettings.KuichikaeLevel) -> Set<String> {
+    func kuichikaeLabels(fulou: [Pai], isChi: Bool, level: GameSettings.KuichikaeLevel) -> Set<String> {
         guard level != .genmotsu else { return [] }
         guard let rotated = fulou.first(where: { $0.rotated }) else { return [] }
         let genmotsu = rotated.normalized
