@@ -5,7 +5,8 @@ import Observation
 final class GameSettings {
 
     // MARK: - CPU
-    var cpuLevel: CpuLevel = .level1
+    // 下家・対面・上家の順（インデックス0=下家, 1=対面, 2=上家）
+    var cpuStyles: [CpuStyle] = [.fulouOffense, .fulouDefense, .menzenDefense]
 
     // MARK: - 点数
     var haikyuGenten: Int = 25000
@@ -159,7 +160,7 @@ final class GameSettings {
         ud.set(kazoeYakumanAri, forKey: "kazoeYakumanAri")
         ud.set(yakumanPaoAri, forKey: "yakumanPaoAri")
         ud.set(kiriageMangan, forKey: "kiriageMangan")
-        ud.set(cpuLevel.rawValue, forKey: "cpuLevel")
+        ud.set(cpuStyles.map { $0.rawValue }, forKey: "cpuStyles")
         ud.set(selectedPreset.rawValue, forKey: "selectedPreset")
         ud.set(tileTheme.rawValue, forKey: "tileTheme")
         ud.set(boardTheme.rawValue, forKey: "boardTheme")
@@ -209,7 +210,9 @@ final class GameSettings {
         s.kazoeYakumanAri    = ud.bool(forKey: "kazoeYakumanAri")
         s.yakumanPaoAri      = ud.bool(forKey: "yakumanPaoAri")
         s.kiriageMangan      = ud.bool(forKey: "kiriageMangan")
-        s.cpuLevel           = CpuLevel(rawValue: ud.string(forKey: "cpuLevel") ?? "") ?? s.cpuLevel
+        if let rawStyles = ud.array(forKey: "cpuStyles") as? [String], rawStyles.count == s.cpuStyles.count {
+            s.cpuStyles = rawStyles.enumerated().map { CpuStyle(rawValue: $1) ?? s.cpuStyles[$0] }
+        }
         s.selectedPreset     = Preset(rawValue: ud.string(forKey: "selectedPreset") ?? "") ?? .custom
         s.tileTheme          = TileTheme(rawValue: ud.string(forKey: "tileTheme") ?? "") ?? .standard
         s.boardTheme         = BoardTheme(rawValue: ud.string(forKey: "boardTheme") ?? "") ?? .standard
@@ -219,9 +222,38 @@ final class GameSettings {
 
     // MARK: - Enums
 
-    enum CpuLevel: String, CaseIterable, Hashable {
-        case level1 = "弱い"
-        case level2 = "普通"
+    /// CPUの打ち回しタイプ。副露軸（鳴くか門前を貫くか）と攻守軸（押し引き判断をするか）の組み合わせに加え、
+    /// 門前守備型からリーチ宣言だけを止めた特殊タイプ（ダマ型）を加えた5種類。
+    enum CpuStyle: String, CaseIterable, Hashable {
+        case fulouOffense  = "副露攻撃型"
+        case fulouDefense  = "副露守備型"
+        case menzenOffense = "門前攻撃型"
+        case menzenDefense = "門前守備型"
+        case damaDefense   = "ダマ型"
+
+        /// 鳴き（チー・ポン）判断を行うか。falseなら門前を貫く。
+        var doesFulou: Bool {
+            switch self {
+            case .fulouOffense, .fulouDefense: return true
+            case .menzenOffense, .menzenDefense, .damaDefense: return false
+            }
+        }
+
+        /// 押し引き（危険牌を避ける）判断を行うか。falseなら常に押す。
+        var playsDefense: Bool {
+            switch self {
+            case .fulouDefense, .menzenDefense, .damaDefense: return true
+            case .fulouOffense, .menzenOffense: return false
+            }
+        }
+
+        /// テンパイ時にリーチを宣言するか。falseなら常にダマテンのまま進める。
+        var declaresRiichi: Bool {
+            switch self {
+            case .damaDefense: return false
+            default: return true
+            }
+        }
     }
 
     enum RenpuFu: String, CaseIterable, Hashable {

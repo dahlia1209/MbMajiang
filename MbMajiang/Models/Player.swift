@@ -564,7 +564,8 @@ class Player {
 // MARK: - AIPlayer
 class AIPlayer: Player {
     override var isHuman: Bool { false }
-    var cpuLevel: GameSettings.CpuLevel = .level1
+    var cpuStyle: GameSettings.CpuStyle = .menzenDefense
+    var kuitanAri: Bool = true
     var getRemainingCounts: (() -> [String: Int])?
     /// リーチ中の相手がいればプレイヤーごとの現物セット配列を返す、いなければ nil
     var getRiichiGenbutsu: (() -> [Set<String>]?)?
@@ -592,8 +593,8 @@ class AIPlayer: Player {
                 self.status.selectedIdx = shoupai.bingpai.count
                 return
             }
-            // 門前テンパイならリーチ宣言
-            if status.paishu >= 4 && canDeclareRiichi() {
+            // 門前テンパイならリーチ宣言（ダマ型はリーチしない）
+            if cpuStyle.declaresRiichi, status.paishu >= 4 && canDeclareRiichi() {
                 self.status.isSelectingRiichi = true
                 selectDapai()
                 return
@@ -616,6 +617,19 @@ class AIPlayer: Player {
                    junDiscards: status.junDiscards[self.id]
                ) {
                 self.status.decision = .hule
+                return
+            }
+            // 副露判断（門前型は鳴かない・リーチ中・牌切れ時も鳴かない）
+            if cpuStyle.doesFulou, !self.status.isLizhi && status.paishu >= 1,
+               let call = evaluateFulouCall(dapai: label, isNextPlayer: isNextId(status.player), status: status) {
+                switch call {
+                case .peng(let indices):
+                    self.status.selectedPengIndices = indices
+                    self.status.decision = .peng
+                case .chi(let indices):
+                    self.status.selectedChiIndices = indices
+                    self.status.decision = .chi
+                }
                 return
             }
         }
@@ -657,7 +671,101 @@ class AIPlayer: Player {
         }
     }
     
-    // シャンテン数最小化（Level 1）または有効牌受け入れ枚数最大化（Level 2）で打牌を選ぶ
+    // MARK: - 副露判断
+
+    enum FulouCallDecision {
+        case peng(indices: [Int])
+        case chi(indices: [Int])
+    }
+
+    // チー・ポンするか判断する。シャンテンが縮む場合のみ鳴き、縮み幅が大きい方を優先する
+    func evaluateFulouCall(dapai: String, isNextPlayer: Bool, status: GameStatus) -> FulouCallDecision? {
+        guard isYakuSafeCall(dapai: dapai, status: status) else { return nil }
+
+        let currentShanten = Hule.xiangting(shoupai.visibleLabels.map { Pai.normalize($0) })
+
+        var bestChi: (indices: [Int], shanten: Int)? = nil
+        if isNextPlayer {
+            for candidate in findChiCandidates(dapai: dapai) {
+                let shanten = shantenAfterCall(handIndices: candidate)
+                if bestChi == nil || shanten < bestChi!.shanten {
+                    bestChi = (candidate, shanten)
+                }
+            }
+        }
+
+        var bestPeng: (indices: [Int], shanten: Int)? = nil
+        if let first = findPengCandidates(dapai: dapai).first {
+            bestPeng = (first, shantenAfterCall(handIndices: first))
+        }
+
+        let chiIsGood = bestChi.map { $0.shanten < currentShanten } ?? false
+        let pengIsGood = bestPeng.map { $0.shanten < currentShanten } ?? false
+
+        if pengIsGood && chiIsGood {
+            return bestPeng!.shanten <= bestChi!.shanten
+                ? .peng(indices: bestPeng!.indices)
+                : .chi(indices: bestChi!.indices)
+        } else if pengIsGood {
+            return .peng(indices: bestPeng!.indices)
+        } else if chiIsGood {
+            return .chi(indices: bestChi!.indices)
+        }
+        return nil
+    }
+
+    // 手牌からhandIndicesの2枚を除いた（鳴いた後の）残り手牌の、打牌後ベストシャンテンを計算する
+    func shantenAfterCall(handIndices: [Int]) -> Int {
+        let indexSet = Set(handIndices)
+        let remaining = shoupai.bingpai.enumerated()
+            .filter { !$0.element.hidden && !indexSet.contains($0.offset) }
+            .map { Pai.normalize($0.element.label) }
+        var best = Int.max
+        for i in remaining.indices {
+            var h = remaining
+            h.remove(at: i)
+            best = min(best, Hule.xiangting(h))
+        }
+        return best
+    }
+
+    // 役なし副露を避ける簡易ガード: 役牌の刻子は常に可、それ以外はクイタンありか既に役牌を持っている場合のみ可
+    func isYakuSafeCall(dapai: String, status: GameStatus) -> Bool {
+        if isYakuhaiTile(dapai, status: status) { return true }
+        if hasOwnYakuhaiSource(status: status) { return true }
+        // 役牌でない么九牌（自風・場風・三元牌以外の字牌、老頭牌）は断么九のルートが無いため、
+        // クイタン設定に関わらず不可
+        guard !isYaojiuTile(dapai) else { return false }
+        return kuitanAri
+    }
+
+    private func isYaojiuTile(_ label: String) -> Bool {
+        let norm = Pai.normalize(label)
+        guard norm.count == 2 else { return false }
+        if norm.first == "z" { return true }
+        guard let n = Int(String(norm.last!)) else { return false }
+        return n == 1 || n == 9
+    }
+
+    private func isYakuhaiTile(_ label: String, status: GameStatus) -> Bool {
+        let norm = Pai.normalize(label)
+        guard norm.count == 2, norm.first == "z", let n = Int(String(norm.last!)) else { return false }
+        if n >= 5 { return true }
+        let menfeng = status.menfengList.indices.contains(id) ? status.menfengList[id] : .東
+        return n == status.zhuangfeng.rawValue || n == menfeng.rawValue
+    }
+
+    private func hasOwnYakuhaiSource(status: GameStatus) -> Bool {
+        let counts = Dictionary(grouping: shoupai.normalizedAllLabels.filter { isYakuhaiTile($0, status: status) }, by: { $0 })
+            .mapValues { $0.count }
+        if counts.values.contains(where: { $0 >= 2 }) { return true }
+        return shoupai.fulou.contains { group in
+            guard let first = group.first else { return false }
+            return isYakuhaiTile(first.normalized, status: status)
+        }
+    }
+
+    // 有効牌受け入れ枚数最大化で打牌を選ぶ（守備型は押し引き判断を優先）
     func selectDapai() {
         let bingpai = shoupai.bingpai.filter { !$0.hidden }
         var allLabels = bingpai.map { $0.normalized }
@@ -665,14 +773,15 @@ class AIPlayer: Player {
             allLabels.append(zimo.normalized)
         }
 
-        guard allLabels.count == 14 else {
+        // 副露済みで手牌枚数が14枚未満でも、有効な「ツモ後・打牌前」の枚数(14,11,8,5,2)なら同じロジックで評価する
+        guard allLabels.count >= 2 && allLabels.count % 3 == 2 else {
             self.status.decision = .dapai
             self.status.selectedIdx = shoupai.bingpai.count
             return
         }
 
-        // Level 2: 降り判断（リーチ相手がいてシャンテン2以上なら安全牌優先）
-        if cpuLevel == .level2, let genbutsuList = getRiichiGenbutsu?() {
+        // 守備型: 降り判断（リーチ相手がいてテンパイ以外なら安全牌優先）
+        if cpuStyle.playsDefense, let genbutsuList = getRiichiGenbutsu?() {
             if let safeIdx = findSafeDiscard(allLabels: allLabels, bingpaiCount: bingpai.count, genbutsuList: genbutsuList) {
                 self.status.decision = .dapai
                 self.status.selectedIdx = safeIdx
@@ -680,7 +789,7 @@ class AIPlayer: Player {
             }
         }
 
-        let remaining: [String: Int] = cpuLevel == .level2 ? (getRemainingCounts?() ?? [:]) : [:]
+        let remaining: [String: Int] = getRemainingCounts?() ?? [:]
 
         var bestIdx = shoupai.bingpai.count
         var bestShanten = Int.max
@@ -703,15 +812,16 @@ class AIPlayer: Player {
         self.status.selectedIdx = bestIdx
     }
 
-    /// 降りモード: シャンテン2以上のときに安全牌インデックスを返す（テンパイ/1シャンテンはnil→押し）
-    /// 優先順位: 1.全員現物（積集合）2.誰かの現物（和集合）3.字牌 4.該当なし→nil
-    private func findSafeDiscard(allLabels: [String], bingpaiCount: Int, genbutsuList: [Set<String>]) -> Int? {
+    /// 降りモード: 1シャンテン以上（テンパイ以外）のときに安全牌インデックスを返す（テンパイはnil→押し）
+    /// 優先順位: 1.全員現物（積集合）2.誰かの現物（和集合）3.全員に本スジ（積集合）4.誰かに本スジ（和集合）
+    ///           5.全員に片スジ（積集合）6.誰かに片スジ（和集合）7.字牌 8.該当なし→nil
+    func findSafeDiscard(allLabels: [String], bingpaiCount: Int, genbutsuList: [Set<String>]) -> Int? {
         var bestShanten = Int.max
         for i in 0..<allLabels.count {
             var hand13 = allLabels; hand13.remove(at: i)
             bestShanten = min(bestShanten, Hule.xiangting(hand13))
         }
-        guard bestShanten >= 2 else { return nil }
+        guard bestShanten >= 1 else { return nil }
 
         func mapIdx(_ i: Int) -> Int { i < bingpaiCount ? i : bingpaiCount }
 
@@ -735,11 +845,55 @@ class AIPlayer: Player {
         let anySafe = genbutsuList.reduce(Set<String>()) { $0.union($1) }
         if let idx = bestIdx(in: anySafe) { return idx }
 
-        // 3. 字牌
+        let sujiPerOpponent = genbutsuList.map { sujiTiles(from: $0) }
+
+        // 3. 全員に対して本スジ（積集合）: 両側の待ち形とも否定されており安全度が高い
+        let fullSujiSets = sujiPerOpponent.map { $0.full }
+        let allFullSuji = fullSujiSets.dropFirst().reduce(fullSujiSets[0]) { $0.intersection($1) }
+        if let idx = bestIdx(in: allFullSuji) { return idx }
+
+        // 4. 誰かに対して本スジ（和集合）
+        let anyFullSuji = fullSujiSets.reduce(Set<String>()) { $0.union($1) }
+        if let idx = bestIdx(in: anyFullSuji) { return idx }
+
+        // 5. 全員に対して片スジ（積集合）: 片側の待ち形しか否定できておらず本スジより安全度は低い
+        let halfSujiSets = sujiPerOpponent.map { $0.half }
+        let allHalfSuji = halfSujiSets.dropFirst().reduce(halfSujiSets[0]) { $0.intersection($1) }
+        if let idx = bestIdx(in: allHalfSuji) { return idx }
+
+        // 6. 誰かに対して片スジ（和集合）
+        let anyHalfSuji = halfSujiSets.reduce(Set<String>()) { $0.union($1) }
+        if let idx = bestIdx(in: anyHalfSuji) { return idx }
+
+        // 7. 字牌
         let jihai = Set(allLabels.filter { $0.hasPrefix("z") })
         if let idx = bestIdx(in: jihai) { return idx }
 
         return nil
+    }
+
+    /// 捨て牌集合からスジを算出する。ある牌Mを待ちうるリャンメン形は最大2つ（M-3側とM+3側）あり、
+    /// 相手の捨て牌がその両方の形を否定していれば「本スジ」（安全度高）、片方のみなら「片スジ」（安全度低）。
+    /// 例: 1が捨てられても4はまだ4-7の形が否定されないため片スジに留まる（4自身が捨てられれば1・7とも本スジ）。
+    func sujiTiles(from discardSet: Set<String>) -> (full: Set<String>, half: Set<String>) {
+        var full = Set<String>()
+        var half = Set<String>()
+        for suit in ["m", "p", "s"] {
+            for m in 1...9 {
+                var partners: [Int] = []
+                if m - 3 >= 1 { partners.append(m - 3) }
+                if m + 3 <= 9 { partners.append(m + 3) }
+                guard !partners.isEmpty else { continue }
+                let discardedCount = partners.filter { discardSet.contains("\(suit)\($0)") }.count
+                guard discardedCount > 0 else { continue }
+                if discardedCount == partners.count {
+                    full.insert("\(suit)\(m)")
+                } else {
+                    half.insert("\(suit)\(m)")
+                }
+            }
+        }
+        return (full, half)
     }
 
     // hand13（13枚・正規化済み）に対して有効牌の残り総枚数を返す

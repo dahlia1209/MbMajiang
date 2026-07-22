@@ -60,7 +60,8 @@ class Game: Identifiable {
                 return Player(id: i, shoupai: board.shan.shoupai[i], he: board.shan.he[i])
             }
             let ai = AIPlayer(id: i, shoupai: board.shan.shoupai[i], he: board.shan.he[i])
-            ai.cpuLevel = settings.cpuLevel
+            ai.cpuStyle = settings.cpuStyles[i - 1]
+            ai.kuitanAri = settings.kuitanAri
             ai.getRemainingCounts = { [weak self] in self?.remainingCounts(for: i) ?? [:] }
             ai.getRiichiGenbutsu = { [weak self] in
                 guard let self else { return nil }

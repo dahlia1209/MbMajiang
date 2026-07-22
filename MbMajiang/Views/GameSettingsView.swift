@@ -200,8 +200,17 @@ struct GameSettingsView: View {
 
     private var cpuDetail: some View {
         VStack(alignment: .leading, spacing: 16) {
-            radioRow("CPUの強さ", selection: Bindable(settings).cpuLevel)
+            radioRow("下家のタイプ", selection: cpuStyleBinding(0))
+            radioRow("対面のタイプ", selection: cpuStyleBinding(1))
+            radioRow("上家のタイプ", selection: cpuStyleBinding(2))
         }
+    }
+
+    private func cpuStyleBinding(_ seatIndex: Int) -> Binding<GameSettings.CpuStyle> {
+        Binding(
+            get: { settings.cpuStyles[seatIndex] },
+            set: { settings.cpuStyles[seatIndex] = $0 }
+        )
     }
 
     private var displayDetail: some View {
