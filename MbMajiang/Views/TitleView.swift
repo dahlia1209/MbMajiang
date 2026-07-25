@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TitleView: View {
+    @Environment(GameSettings.self) private var settings
     @State private var titleOpacity: Double = 0
     @State private var titleOffset: CGFloat = -30
     @State private var subtitleOpacity: Double = 0
@@ -9,6 +10,7 @@ struct TitleView: View {
     @State private var showMenu: Bool = false
     @State private var isSettingsPresented = false
     @State private var isHowToPlayPresented = false
+    @State private var startedGame: Game? = nil
 
     var body: some View {
         ZStack {
@@ -45,6 +47,9 @@ struct TitleView: View {
         }
         .fullScreenCover(isPresented: $isHowToPlayPresented) {
             HowToPlayView()
+        }
+        .fullScreenCover(item: $startedGame) { game in
+            BoardView(game: game, debugActions: [], autoStart: false, showStartButton: true)
         }
         .transaction(value: isSettingsPresented) { transaction in
             transaction.disablesAnimations = true
@@ -156,15 +161,15 @@ struct TitleView: View {
                 )
 
             // インラインメニュー
-            VStack(spacing: 10) {
-                HStack(spacing: 12) {
-                    menuButton("CPU戦") { isSettingsPresented = true }
-                    menuButton("ネット対戦") { }
+            HStack(spacing: 12) {
+                menuButton("CPU対局") {
+                    var transaction = Transaction()
+                    transaction.disablesAnimations = true
+                    withTransaction(transaction) {
+                        startedGame = Game(settings: settings)
+                    }
                 }
-                HStack(spacing: 12) {
-                    menuButton("遊び方") { isHowToPlayPresented = true }
-                    menuButton("設定") { }
-                }
+                menuButton("遊び方") { isHowToPlayPresented = true }
             }
             .opacity(showMenu ? 1 : 0)
             .animation(.easeOut(duration: 0.25), value: showMenu)

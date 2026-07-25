@@ -296,7 +296,9 @@ class Game: Identifiable {
         status.junDiscards[fulouPlayer] = []
         players.indices.forEach { players[$0].cancelYifa() }
         processLizhiPayments()
-        advance()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Game.actionBannerDuration) { [weak self] in
+            self?.advance()
+        }
     }
 
     func minggang(player fulouPlayer: Int) {
@@ -322,7 +324,9 @@ class Game: Identifiable {
         status.junDiscards[fulouPlayer] = []
         players.indices.forEach { players[$0].cancelYifa() }
         processLizhiPayments()
-        advance()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Game.actionBannerDuration) { [weak self] in
+            self?.advance()
+        }
     }
 
     private func detectPao(fulouPlayer: Int, calledTile: Pai, isMinggang: Bool) -> Int? {
@@ -385,9 +389,11 @@ class Game: Identifiable {
         status.junDiscards[fulouPlayer] = []
         players.indices.forEach { players[$0].cancelYifa() }
         processLizhiPayments()
-        advance()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Game.actionBannerDuration) { [weak self] in
+            self?.advance()
+        }
     }
-    
+
     func angang() {
         SoundManager.shared.play("gang")
         showActionBanner("gang", player: status.player)
@@ -395,7 +401,9 @@ class Game: Identifiable {
         status.gangdoraFlag = .afterZimo
         status.phase = .lingshang
         players.indices.forEach { players[$0].cancelYifa() }
-        advance()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Game.actionBannerDuration) { [weak self] in
+            self?.advance()
+        }
     }
 
     func kagang() {
@@ -406,7 +414,9 @@ class Game: Identifiable {
         status.gangdoraFlag = .afterZimo
         status.phase = .kagang
         players.indices.forEach { players[$0].cancelYifa() }
-        advance()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Game.actionBannerDuration) { [weak self] in
+            self?.advance()
+        }
     }
 
 
@@ -962,7 +972,9 @@ class Game: Identifiable {
         return (round, honba)
     }
 
-    func showActionBanner(_ imageName: String, player: Int? = nil, duration: Double = 1.2) {
+    static let actionBannerDuration: Double = 1.2
+
+    func showActionBanner(_ imageName: String, player: Int? = nil, duration: Double = Game.actionBannerDuration) {
         actionBannerImage = imageName
         actionBannerPlayer = player
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in

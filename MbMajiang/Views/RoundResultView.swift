@@ -384,6 +384,8 @@ struct RoundResultView: View {
                 .font(.system(size: 12, weight: .bold, design: .monospaced))
                 .foregroundColor(diffColor(diff))
                 .frame(width: 60, alignment: .trailing)
+                .opacity(revealedCount >= result.hupai.count ? 1 : 0)
+                .animation(.easeOut(duration: 0.3), value: revealedCount)
         }
     }
 

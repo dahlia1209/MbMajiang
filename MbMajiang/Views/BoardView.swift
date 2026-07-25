@@ -17,11 +17,14 @@ struct BoardView: View {
     @State private var revealAll: Bool = false
     @State private var showQuitAlert = false
     @State private var isBGMMuted = false
+    @State private var hasStarted: Bool
+    @State private var showCustomDetails = false
 
-    init(game: Game, debugActions: Set<PlayerButtonAction>, autoStart: Bool = true) {
+    init(game: Game, debugActions: Set<PlayerButtonAction>, autoStart: Bool = true, showStartButton: Bool = false) {
         self._game = State(initialValue: game)
         self.debugActions = debugActions
         self.autoStart = autoStart
+        self._hasStarted = State(initialValue: !showStartButton)
     }
 
     /// 実際に表示するボタン（gameのactionsが空の場合はdebugActionsを使用）
@@ -51,7 +54,7 @@ struct BoardView: View {
 
             VStack {
                 Spacer()
-                ScoreBoardView(game.board.score, game.board.shan.wangpai, game.board.shan.paishu,
+                ScoreBoardView(game.board.score, hasStarted ? game.board.shan.wangpai : Wangpai(), game.board.shan.paishu,
                                lizhiPlayers: game.players.map { $0.status.isLizhi })
                 Spacer()
             }
@@ -69,7 +72,7 @@ struct BoardView: View {
                 .offset(y: 200)
                 .rotationEffect(.degrees(90))
 
-            PlayerHandSection(game: game)
+            PlayerHandSection(game: game, hasStarted: hasStarted)
 
             ShoupaiView(shoupai: game.board.shan.shoupai[1], isTajia: !revealAll && !(isPingju && isTenpai(1)),
                         baopai: game.board.shan.wangpai.baopai.map { $0.normalized })
@@ -177,18 +180,36 @@ struct BoardView: View {
                     Button {
                         game.isFulouSkipEnabled.toggle()
                     } label: {
-                        Image(systemName: game.isFulouSkipEnabled ? "hand.raised.slash.fill" : "hand.raised.fill")
-                            .font(.system(size: 16))
-                            .foregroundColor(game.isFulouSkipEnabled ? .white.opacity(0.7) : .yellow)
-                            .frame(width: 38, height: 38)
-                            .background(Color.black.opacity(0.4))
-                            .clipShape(Circle())
+                        ZStack {
+                            Text("鳴")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(game.isFulouSkipEnabled ? .white.opacity(0.7) : .yellow)
+                            if game.isFulouSkipEnabled {
+                                Rectangle()
+                                    .fill(Color.black.opacity(0.4))
+                                    .frame(width: 5, height: 24)
+                                    .rotationEffect(.degrees(-45))
+                                Rectangle()
+                                    .fill(Color.white.opacity(0.7))
+                                    .frame(width: 1.5, height: 24)
+                                    .rotationEffect(.degrees(-45))
+                            }
+                        }
+                        .frame(width: 38, height: 38)
+                        .background(Color.black.opacity(0.4))
+                        .clipShape(Circle())
                     }
                     Spacer()
                 }
                 .padding(.leading, 12)
                 .padding(.top, 12)
                 Spacer()
+            }
+
+            // 対局前ルールパネル（自分の手牌の少し上、開始前のみ表示）
+            if !hasStarted {
+                preStartPanel
+                    .offset(y: 0)
             }
 
             // 手牌表示トグル（設定で有効時のみ表示）
@@ -322,7 +343,9 @@ struct BoardView: View {
         }
         .onAppear {
             setupGame()
-            SoundManager.shared.playBGM(game.board.score.round.bgmName)
+            if hasStarted {
+                SoundManager.shared.playBGM(game.board.score.round.bgmName)
+            }
         }
         .onDisappear {
             SoundManager.shared.stopBGM()
@@ -350,11 +373,166 @@ struct BoardView: View {
         }
     }
 
+    // MARK: - 対局前ルールパネル
+
+    private var goldColor: Color { Color(red: 0.82, green: 0.68, blue: 0.25) }
+    private var goldLightColor: Color { Color(red: 0.97, green: 0.93, blue: 0.83) }
+
+    private var preStartPanel: some View {
+        HStack(alignment: .top, spacing: 16) {
+            VStack(spacing: 12) {
+                Text("対局ルール")
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(goldColor)
+                    .tracking(4)
+                    .shadow(color: .black.opacity(0.9), radius: 2)
+
+                HStack(spacing: 8) {
+                    Text("局数")
+                        .font(.system(size: 12, design: .monospaced))
+                        .foregroundStyle(goldLightColor.opacity(0.85))
+                        .shadow(color: .black.opacity(0.9), radius: 2)
+                    Spacer()
+                    Picker("局数", selection: Bindable(game.settings).kyokuCount) {
+                        ForEach(GameSettings.KyokuCount.allCases, id: \.self) { option in
+                            Text(option.rawValue).tag(option)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
+                }
+                .frame(width: 260)
+
+                cpuStyleUnifiedRow
+
+                assistToggleRow
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showCustomDetails.toggle() }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(showCustomDetails ? "詳細設定を閉じる" : "詳細設定を開く")
+                        Image(systemName: showCustomDetails ? "chevron.left" : "chevron.right")
+                            .font(.system(size: 10))
+                    }
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(goldColor.opacity(0.85))
+                }
+
+                Button {
+                    startGame()
+                } label: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(goldColor.opacity(0.25))
+                            .blur(radius: 8)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(
+                                LinearGradient(colors: [goldLightColor, goldColor],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                                lineWidth: 1.5)
+                            .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.4)))
+                        Text("対局開始  ▶")
+                            .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(
+                                LinearGradient(colors: [goldLightColor, goldColor],
+                                               startPoint: .leading, endPoint: .trailing))
+                            .tracking(4)
+                    }
+                    .frame(width: 200, height: 46)
+                    .contentShape(Rectangle())
+                }
+            }
+            .frame(width: 260)
+
+            if showCustomDetails {
+                Rectangle()
+                    .fill(goldColor.opacity(0.25))
+                    .frame(width: 1, height: 300)
+
+                ScrollView {
+                    DetailSettingsSection(settings: game.settings)
+                        .padding(.vertical, 4)
+                }
+                .frame(width: 300, height: 300)
+                .transition(.move(edge: .trailing).combined(with: .opacity))
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.ultraThinMaterial)
+                .overlay(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.35)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(goldColor.opacity(0.5), lineWidth: 1)
+                )
+        )
+    }
+
+    private var assistToggleRow: some View {
+        HStack(spacing: 8) {
+            Text("アシスト機能")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(goldLightColor.opacity(0.85))
+                .shadow(color: .black.opacity(0.9), radius: 2)
+            Spacer()
+            Toggle("", isOn: Binding(
+                get: { game.settings.dapaiAssist },
+                set: { newValue in
+                    game.settings.dapaiAssist = newValue
+                    game.settings.agariHaiDisplay = newValue
+                    game.settings.fulouAssist = newValue
+                }
+            ))
+            .labelsHidden()
+            .tint(goldColor)
+        }
+        .frame(width: 260)
+    }
+
+    private var cpuStyleUnifiedRow: some View {
+        HStack(spacing: 8) {
+            Text("CPUの強さ")
+                .font(.system(size: 12, design: .monospaced))
+                .foregroundStyle(goldLightColor.opacity(0.85))
+                .shadow(color: .black.opacity(0.9), radius: 2)
+            Spacer()
+            Picker("", selection: Binding(
+                get: { game.settings.cpuStyles.first ?? .fulouOffense },
+                set: { newValue in
+                    for i in game.settings.cpuStyles.indices {
+                        game.settings.cpuStyles[i] = newValue
+                    }
+                }
+            )) {
+                ForEach(GameSettings.CpuStyle.allCases, id: \.self) { style in
+                    Text(style.rawValue).tag(style)
+                }
+            }
+            .pickerStyle(.menu)
+            .tint(goldLightColor)
+            .lineLimit(1)
+            .fixedSize()
+        }
+        .frame(width: 260)
+    }
+
     // MARK: - ゲーム進行
     // ゲームロジックはGame.advance()/processPlayerActions()が担うため、startを呼ぶだけ
     func setupGame() {
         guard autoStart else { return }
         game.start()
+        hasStarted = true
+    }
+
+    // 対局開始ボタン（手動開始）。ルールパネルで変更された設定を反映するため、この時点で配牌をやり直す
+    private func startGame() {
+        game.settings.save()
+        game = Game(settings: game.settings)
+        game.start()
+        hasStarted = true
+        SoundManager.shared.playBGM(game.board.score.round.bgmName)
     }
 }
 
@@ -363,6 +541,7 @@ struct BoardView: View {
 /// タップのたびにBoardView全体が再描画されるのを防ぐ。
 private struct PlayerHandSection: View {
     var game: Game
+    var hasStarted: Bool
     @State private var cachedXiantingInfo: (count: Int, indices: Set<Int>) = (99, [])
 
     private static let allTileLabels: [String] =
@@ -546,6 +725,7 @@ private struct PlayerHandSection: View {
     var body: some View {
         ShoupaiView(
             shoupai: game.board.shan.shoupai[0],
+            isTajia: !hasStarted,
             onTapPai: onTapPaiHandler,
             highlightedIndices: highlightedIndices,
             selectedIndices: game.isSelectingDapai

@@ -14,7 +14,7 @@ struct MbMajiangApp: App {
 
     var body: some Scene {
         WindowGroup {
-            GameSettingsView()
+            TitleView()
                 .environment(settings)
         }
         .onChange(of: scenePhase) { _, phase in

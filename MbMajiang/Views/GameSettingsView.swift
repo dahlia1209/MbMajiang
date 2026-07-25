@@ -3,15 +3,15 @@ import SwiftUI
 struct GameSettingsView: View {
     @Environment(GameSettings.self) private var settings
     @Environment(\.dismiss) private var dismiss
+    /// 対局画面のプレスタートパネルから「詳細設定」として開かれた場合はtrue。
+    /// このときフッターは対局を開始せず、設定を保存して画面を閉じるだけにする
+    var embedded: Bool = false
     @State private var startedGame: Game? = nil
     @State private var isLocked = false
-    @State private var selectedCategory: SettingsCategory = .score
 
     private let gold      = Color(red: 0.8, green: 0.6, blue: 0.2)
     private let goldLight = Color(red: 1.0, green: 0.92, blue: 0.6)
     private let labelW: CGFloat = 148
-    private let sidebarW: CGFloat = 170
-    private let dividerW: CGFloat = 1
 
     private enum SettingsCategory: String, CaseIterable, Identifiable {
         case rule       = "基本設定"
@@ -58,25 +58,16 @@ struct GameSettingsView: View {
                         .background(gold.opacity(0.3))
                         .padding(.horizontal, 60)
 
-                    HStack(spacing: 0) {
-                        sidebar
-                            .frame(width: sidebarW)
-                            .layoutPriority(1)
-
-                        Rectangle()
-                            .fill(gold.opacity(0.15))
-                            .frame(width: dividerW)
-
-                        let detailWidth = max(0, proxy.size.width - sidebarW - dividerW)
-                        ScrollView {
-                            categoryDetail(selectedCategory)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.horizontal, 40)
-                                .padding(.top, 24)
-                                .padding(.bottom, 40)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 24) {
+                            ForEach(SettingsCategory.allCases) { category in
+                                sectionBlock(category)
+                            }
                         }
-                        .frame(width: detailWidth)
-                        .clipped()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 60)
+                        .padding(.top, 20)
+                        .padding(.bottom, 40)
                     }
 
                     footer
@@ -85,7 +76,7 @@ struct GameSettingsView: View {
             .frame(width: proxy.size.width, height: proxy.size.height)
         }
         .fullScreenCover(item: $startedGame) { game in
-            BoardView(game: game, debugActions: [])
+            BoardView(game: game, debugActions: [], autoStart: false, showStartButton: true)
         }
         .onAppear { isLocked = settings.selectedPreset != .custom }
         .onDisappear { settings.save() }
@@ -122,56 +113,30 @@ struct GameSettingsView: View {
         .frame(height: 44)
     }
 
-    // MARK: - Sidebar (Finder-style list)
+    // MARK: - Section (single-list layout)
 
-    private var sidebar: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 2) {
-                sidebarRow(.rule)
-
-                Rectangle()
-                    .fill(gold.opacity(0.15))
-                    .frame(height: 1)
-                    .padding(.vertical, 6)
-
-                ForEach(SettingsCategory.allCases.filter { $0 != .rule }) { category in
-                    sidebarRow(category)
-                }
-            }
-            .padding(8)
-        }
-        .background(Color.black.opacity(0.15))
-    }
-
-    private func sidebarRow(_ category: SettingsCategory) -> some View {
-        let isSelected = selectedCategory == category
-        return Button {
-            selectedCategory = category
-        } label: {
+    private func sectionBlock(_ category: SettingsCategory) -> some View {
+        VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 8) {
                 Image(systemName: category.icon)
-                    .font(.system(size: 12))
-                    .frame(width: 16)
-                    .foregroundStyle(isSelected ? goldLight : gold.opacity(0.6))
+                    .font(.system(size: 13))
+                    .foregroundStyle(gold)
                 Text(category.rawValue)
-                    .font(.system(size: 13, weight: isSelected ? .semibold : .regular))
-                    .foregroundStyle(isSelected ? goldLight : goldLight.opacity(0.65))
-                Spacer()
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(goldLight)
                 if category.isLockable && isLocked {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 9))
+                        .font(.system(size: 10))
                         .foregroundStyle(gold.opacity(0.4))
                 }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 7)
-            .background(
-                RoundedRectangle(cornerRadius: 6)
-                    .fill(isSelected ? gold.opacity(0.22) : Color.clear)
-            )
-            .contentShape(Rectangle())
+
+            categoryDetail(category)
+
+            if category != SettingsCategory.allCases.last {
+                Divider().background(gold.opacity(0.15))
+            }
         }
-        .buttonStyle(.plain)
     }
 
     // MARK: - Detail (Preview area)
@@ -512,7 +477,12 @@ struct GameSettingsView: View {
                 .padding(.horizontal, 60)
 
             Button {
-                startGame()
+                if embedded {
+                    settings.save()
+                    dismiss()
+                } else {
+                    startGame()
+                }
             } label: {
                 ZStack {
                     RoundedRectangle(cornerRadius: 4)
@@ -526,7 +496,7 @@ struct GameSettingsView: View {
                                 startPoint: .topLeading, endPoint: .bottomTrailing),
                             lineWidth: 1.5)
                         .background(RoundedRectangle(cornerRadius: 4).fill(Color.white.opacity(0.05)))
-                    Text("対局開始  ▶")
+                    Text(embedded ? "閉じる" : "対局開始  ▶")
                         .font(.system(size: 16, weight: .semibold, design: .monospaced))
                         .foregroundStyle(
                             LinearGradient(
