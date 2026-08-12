@@ -150,9 +150,31 @@ struct HuleContext {
 struct Yaku {
     let name: String
     let fanshu: Int  // 翻数（役満=100, ダブル役満=200）
-    
+
     static let yakuman = 100
     static let doubleYakuman = 200
+
+    /// getYaku()が返しうる役名の全一覧（成績画面の役別カウント表示で「0回」の役も一覧するために使用）
+    static let allPossibleNames: [String] = {
+        let winds = ["東", "南", "西", "北"]
+        var names: [String] = [
+            "門前清自摸和", "立直", "ダブル立直", "一発", "槍槓", "嶺上開花", "海底摸月", "河底撈魚",
+            "平和", "断么九", "一盃口", "三色同順", "三色同刻", "一気通貫", "混全帯么九",
+            "七対子", "対対和", "三暗刻", "三槓子", "小三元", "混老頭", "二盃口",
+            "混一色", "純全帯么九", "清一色",
+            "国士無双", "国士無双十三面待ち", "四暗刻", "四暗刻単騎待ち",
+            "大三元", "小四喜", "大四喜", "字一色", "緑一色", "清老頭",
+            "純正九蓮宝燈", "九蓮宝燈", "四槓子", "天和", "地和",
+            "白", "發", "中",
+            "ドラ", "裏ドラ",
+        ]
+        for wind in winds {
+            names.append("連風牌（\(wind)）")
+            names.append("場風（\(wind)）")
+            names.append("自風（\(wind)）")
+        }
+        return names
+    }()
 }
 
 // MARK: - DefenResult（点数計算結果）
@@ -1485,6 +1507,7 @@ struct HuleResult {
 
     var kind: Kind
     var hulePlayer: Int?       // 和了プレイヤー index（流局時は nil）
+    var houjuuPlayer: Int? = nil  // 放銃者 index（ロン時のみ、それ以外は nil）
     var bingpai: [Pai]         // 手牌（表示用・hidden除去済み）
     var fulou: [[Pai]] = []    // 副露グループ（表示順）
     var winTile: Pai?          // 和了牌（ツモ牌 or ロン牌）

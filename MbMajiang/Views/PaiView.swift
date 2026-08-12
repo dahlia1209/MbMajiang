@@ -10,18 +10,33 @@ import SwiftUI
 struct PaiView: View {
     var pai: Pai
     @Environment(\.tileTheme) private var tileTheme
+    @Environment(\.tileBackColor) private var tileBackColor
+    @Environment(\.genericTileColors) private var genericTileColors
 
     var body: some View {
         ZStack {
-            RoundedRectangle(cornerRadius: 3)
-                .fill(isRevealed() ? Color.white : Color(red: 229/255, green: 179/255, blue: 67/255))
-
-            if self.isRevealed() {
-                let imageName = tileTheme.imageName(for: pai.label)
-                if let uiImage = UIImage(named: imageName) {
-                    Image(uiImage: uiImage)
+            if isRevealed() {
+                RoundedRectangle(cornerRadius: 3)
+                    .fill(Color.white)
+                if tileTheme == .original,
+                   let layers = GameSettings.genericTileLayers(for: pai.label, colors: genericTileColors) {
+                    ForEach(layers.masks, id: \.name) { mask in
+                        Image(mask.name)
+                            .renderingMode(.template)
+                            .resizable()
+                            .foregroundStyle(mask.color)
+                    }
+                    Image(layers.fixed)
                         .resizable()
+                } else {
+                    let imageName = tileTheme.imageName(for: pai.label)
+                    if let uiImage = UIImage(named: imageName) {
+                        Image(uiImage: uiImage)
+                            .resizable()
+                    }
                 }
+            } else {
+                tileBackView
             }
         }
         .clipped()
@@ -49,6 +64,22 @@ struct PaiView: View {
     
     func isRevealed() -> Bool {
         return pai.label != "_" && self.pai.revealed
+    }
+
+    @ViewBuilder
+    private var tileBackView: some View {
+        switch tileBackColor {
+        case .solid(let color):
+            RoundedRectangle(cornerRadius: 3)
+                .fill(color)
+        case .striped(let count, let color1, let color2):
+            VStack(spacing: 0) {
+                ForEach(0..<count, id: \.self) { i in
+                    (i % 2 == 0 ? color1 : color2)
+                }
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 3))
+        }
     }
 }
 

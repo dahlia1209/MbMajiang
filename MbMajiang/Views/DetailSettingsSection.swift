@@ -12,10 +12,10 @@ struct DetailSettingsSection: View {
 
     private let gold      = Color(red: 0.82, green: 0.68, blue: 0.25)
     private let goldLight = Color(red: 0.97, green: 0.93, blue: 0.83)
-    private let labelW: CGFloat = 110
+    private let labelW: CGFloat = 130
 
     private static let haikyuGentenRange = Array(stride(from: 20000, through: 50000, by: 5000))
-    private static let junikitenRange = Array(stride(from: -150, through: 150, by: 10))
+    private static let junikitenRange = Array(stride(from: -50, through: 50, by: 10))
 
     private var isLocked: Bool { settings.selectedPreset != .custom }
 
@@ -31,14 +31,13 @@ struct DetailSettingsSection: View {
                 cpuStyleRow("対面", seatIndex: 1)
                 cpuStyleRow("上家", seatIndex: 2)
             }
-            group("表示") {
-                radioRow("牌デザイン", selection: $settings.tileTheme)
-                boolRow("手牌表示オプション", isOn: $settings.showHandDisplayOption)
-            }
             group("アシスト") {
                 boolRow("打牌アシスト", isOn: $settings.dapaiAssist)
                 boolRow("アガリ牌表示", isOn: $settings.agariHaiDisplay)
                 boolRow("副露アシスト", isOn: $settings.fulouAssist)
+                yesNoRow("手役一覧", isOn: $settings.showTeyakuList)
+                yesNoRow("遊び方", isOn: $settings.showHowToPlayAssist)
+                boolRow("手牌表示オプション", isOn: $settings.showHandDisplayOption)
             }
             group("点数") {
                 numberRow("配給原点", value: $settings.haikyuGenten, options: Self.haikyuGentenRange)
@@ -120,7 +119,7 @@ struct DetailSettingsSection: View {
             rowLabel(label)
             Picker("", selection: cpuStyleBinding(seatIndex)) {
                 ForEach(GameSettings.CpuStyle.allCases, id: \.self) { style in
-                    Text(style.rawValue).tag(style)
+                    Text(style.detailPanelLabel).tag(style)
                 }
             }
             .pickerStyle(.menu)
@@ -139,20 +138,18 @@ struct DetailSettingsSection: View {
     }
 
     private var akadoraRow: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             rowLabel("赤牌枚数")
-            HStack(spacing: 10) {
-                akadoraPicker("萬", value: $settings.akadoraMan)
-                akadoraPicker("筒", value: $settings.akadoraPin)
-                akadoraPicker("索", value: $settings.akadoraSou)
-            }
-            Spacer()
+            akadoraPicker("萬子", value: $settings.akadoraMan)
+            akadoraPicker("筒子", value: $settings.akadoraPin)
+            akadoraPicker("索子", value: $settings.akadoraSou)
         }
     }
 
     private func akadoraPicker(_ label: String, value: Binding<Int>) -> some View {
-        HStack(spacing: 3) {
-            Text(label).font(.system(size: 10)).foregroundStyle(gold.opacity(0.6))
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Color.clear.frame(width: 16)
+            rowLabel(label)
             Picker("", selection: value) {
                 ForEach(0...4, id: \.self) { n in Text("\(n)").tag(n) }
             }
@@ -160,13 +157,14 @@ struct DetailSettingsSection: View {
             .tint(goldLight)
             .lineLimit(1)
             .fixedSize()
+            Spacer()
         }
     }
 
     private var junikitenRow: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text("順位点")
-                .font(.system(size: 11, weight: .medium))
+                .font(.system(size: 13, weight: .medium))
                 .foregroundStyle(goldLight)
 
             rankStaticRow("1着", value: settings.junkiten1)
@@ -211,7 +209,7 @@ struct DetailSettingsSection: View {
     private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
         VStack(alignment: .leading, spacing: 8) {
             Text(title)
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
                 .foregroundStyle(gold.opacity(0.8))
                 .tracking(2)
             content()
@@ -226,6 +224,21 @@ struct DetailSettingsSection: View {
             Picker("", selection: isOn) {
                 Text("なし").tag(false)
                 Text("あり").tag(true)
+            }
+            .pickerStyle(.menu)
+            .tint(goldLight)
+            .lineLimit(1)
+            .fixedSize()
+            Spacer()
+        }
+    }
+
+    private func yesNoRow(_ title: String, isOn: Binding<Bool>) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            rowLabel(title)
+            Picker("", selection: isOn) {
+                Text("いいえ").tag(false)
+                Text("はい").tag(true)
             }
             .pickerStyle(.menu)
             .tint(goldLight)
@@ -270,7 +283,7 @@ struct DetailSettingsSection: View {
 
     private func rowLabel(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 11, weight: .medium))
+            .font(.system(size: 13, weight: .medium))
             .foregroundStyle(goldLight.opacity(0.85))
             .shadow(color: .black.opacity(0.9), radius: 2)
             .frame(width: labelW, alignment: .leading)

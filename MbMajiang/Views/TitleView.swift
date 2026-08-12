@@ -2,8 +2,6 @@ import SwiftUI
 
 struct TitleView: View {
     @Environment(GameSettings.self) private var settings
-    @State private var titleOpacity: Double = 0
-    @State private var titleOffset: CGFloat = -30
     @State private var subtitleOpacity: Double = 0
     @State private var buttonOpacity: Double = 0
     @State private var blinkOpacity: Double = 1.0
@@ -11,11 +9,15 @@ struct TitleView: View {
     @State private var isSettingsPresented = false
     @State private var isHowToPlayPresented = false
     @State private var startedGame: Game? = nil
+    @State private var isGameEditPresented = false
+    @State private var isMatchStatsPresented = false
+    @State private var isShopPresented = false
+    @State private var isCreditsPresented = false
 
     var body: some View {
         ZStack {
             // ① 背景画像
-            Image("titleBackground")
+            Image("original/titleBackground")
                 .resizable()
                 .scaledToFill()
                 .ignoresSafeArea()
@@ -33,8 +35,39 @@ struct TitleView: View {
                 Spacer().frame(height: 60)
             }
 
+            // ③ 追加コンテンツ（ショップ）・クレジットの動線
+            VStack {
+                HStack {
+                    Spacer()
+                    VStack(spacing: 10) {
+                        shopButton
+                        creditsButton
+                    }
+                }
+                Spacer()
+            }
+            .padding(.top, 64)
+            .padding(.trailing, 24)
+            .opacity(buttonOpacity)
+
+            if isShopPresented {
+                ShopView(isPresented: $isShopPresented)
+                    .transition(.opacity)
+            }
+
+            if isMatchStatsPresented {
+                MatchStatsView(isPresented: $isMatchStatsPresented)
+                    .transition(.opacity)
+            }
+
+            if isCreditsPresented {
+                CreditsView(isPresented: $isCreditsPresented)
+                    .transition(.opacity)
+            }
+
                 }
         .onTapGesture {
+            guard !isShopPresented, !isMatchStatsPresented, !isCreditsPresented else { return }
             if showMenu {
                 withAnimation(.easeOut(duration: 0.2)) { showMenu = false }
             } else {
@@ -51,11 +84,47 @@ struct TitleView: View {
         .fullScreenCover(item: $startedGame) { game in
             BoardView(game: game, debugActions: [], autoStart: false, showStartButton: true)
         }
+        .fullScreenCover(isPresented: $isGameEditPresented) {
+            GameEditView()
+        }
         .transaction(value: isSettingsPresented) { transaction in
             transaction.disablesAnimations = true
         }
         .transaction(value: isHowToPlayPresented) { transaction in
             transaction.disablesAnimations = true
+        }
+        .transaction(value: isGameEditPresented) { transaction in
+            transaction.disablesAnimations = true
+        }
+    }
+
+    // MARK: - Shop Button
+    private var shopButton: some View {
+        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isShopPresented = true } }) {
+            Image(systemName: "cart.fill")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Color(red: 0.82, green: 0.68, blue: 0.25))
+                .frame(width: 38, height: 38)
+                .background(Color.black.opacity(0.35))
+                .clipShape(Circle())
+                .overlay(
+                    Circle().stroke(Color(red: 0.82, green: 0.68, blue: 0.25).opacity(0.6), lineWidth: 1)
+                )
+        }
+    }
+
+    // MARK: - Credits Button
+    private var creditsButton: some View {
+        Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isCreditsPresented = true } }) {
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 16, weight: .bold))
+                .foregroundStyle(Color(red: 0.82, green: 0.68, blue: 0.25))
+                .frame(width: 38, height: 38)
+                .background(Color.black.opacity(0.35))
+                .clipShape(Circle())
+                .overlay(
+                    Circle().stroke(Color(red: 0.82, green: 0.68, blue: 0.25).opacity(0.6), lineWidth: 1)
+                )
         }
     }
 
@@ -82,16 +151,25 @@ struct TitleView: View {
             decorativeDivider
             
             // ⑥ サブタイトル（英語 or 読み）
-            Text("FUTA MAJIANG")
+            Text("LET'S MAHJONG")
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
                 .foregroundStyle(Color(red: 0.82, green: 0.68, blue: 0.25))
                 .tracking(8)
                 .shadow(color: Color.black.opacity(0.5), radius: 3)
                 .opacity(subtitleOpacity)
 
-            // ⑦ メインタイトル（大きく迫力ある）
-            Text("風太麻雀")
-                .font(.system(size: 96, weight: .black))
+            // ⑦ メインタイトル（大きく迫力ある）「レッツ」だけ文字間を詰める
+            (
+                Text("レッツ")
+                    .font(.custom("ShinRetroMaruGothic-Bold", size: 108))
+                    .tracking(-18)
+                +
+                Text(" ")
+                    .font(.custom("ShinRetroMaruGothic-Bold", size: 108))
+                +
+                Text("麻雀")
+                    .font(.custom("ShinRetroMaruGothic-Bold", size: 108))
+            )
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
@@ -104,16 +182,14 @@ struct TitleView: View {
                 )
                 .shadow(color: Color(red: 0.05, green: 0.2, blue: 0.08).opacity(0.9), radius: 6, x: 2, y: 2)
                 .shadow(color: Color(red: 0.05, green: 0.2, blue: 0.08).opacity(0.5), radius: 20)
-                .opacity(titleOpacity)
-                .offset(y: titleOffset)
-            
-   
+
+
             // ⑨ 装飾ライン（下）
             decorativeDivider
         }
         .padding(.horizontal, 60)
     }
-    
+
     // MARK: - Decorative Divider
     var decorativeDivider: some View {
         HStack(spacing: 12) {
@@ -169,6 +245,8 @@ struct TitleView: View {
                         startedGame = Game(settings: settings)
                     }
                 }
+                menuButton("対局編集") { isGameEditPresented = true }
+                menuButton("対局成績") { withAnimation(.easeInOut(duration: 0.2)) { isMatchStatsPresented = true } }
                 menuButton("遊び方") { isHowToPlayPresented = true }
             }
             .opacity(showMenu ? 1 : 0)
@@ -179,10 +257,6 @@ struct TitleView: View {
     // MARK: - Animation
     func animateIn() {
         SoundManager.shared.play("title")
-        withAnimation(.easeOut(duration: 0.8)) {
-            titleOpacity = 1
-            titleOffset = 0
-        }
         withAnimation(.easeOut(duration: 0.8).delay(0.3)) {
             subtitleOpacity = 1
         }

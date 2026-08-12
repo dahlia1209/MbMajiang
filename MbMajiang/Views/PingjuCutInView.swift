@@ -6,7 +6,7 @@ struct PingjuCutInView: View {
     @State private var opacity: Double = 0.0
 
     var body: some View {
-        Image("pingju")
+        Image("original/pingju")
             .resizable()
             .scaledToFit()
             .frame(height: 120)

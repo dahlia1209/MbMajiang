@@ -88,7 +88,7 @@ struct ScoreBoardView: View {
         let pts  = score.defen[playerIdx].1
         return VStack(spacing: 2) {
             if isLizhi {
-                Image("1000")
+                Image("original/1000")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 6)

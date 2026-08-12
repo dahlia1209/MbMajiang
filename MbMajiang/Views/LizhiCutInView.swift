@@ -14,7 +14,7 @@ struct LizhiCutInView: View {
     @State private var opacity: Double = 1.0
 
     var body: some View {
-        Image("lizhi")
+        Image("original/lizhi")
             .resizable()
             .scaledToFit()
             .frame(height: 120)

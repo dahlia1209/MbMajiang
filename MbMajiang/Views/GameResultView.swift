@@ -13,195 +13,170 @@ struct GameResultView: View {
 
     private let playerNames = ["私", "下家", "対面", "上家"]
 
+    private let goldColor      = Color(red: 0.82, green: 0.68, blue: 0.25)
+    private let goldLightColor = Color(red: 0.97, green: 0.93, blue: 0.83)
+
     // カラム幅
-    private let colJushu:  CGFloat = 50
-    private let colHonba:  CGFloat = 44
-    private let colKind:   CGFloat = 72
-    private let colPlayer: CGFloat = 80
-    private let colGap:    CGFloat = 1
+    private let colPlayer: CGFloat = 90
+    private let colRank:   CGFloat = 56
+    private let colScore:  CGFloat = 100
+    private let colStat:   CGFloat = 76
+
+    // 順位順（1位が先頭）に並べたプレイヤー index
+    private var rankedIndices: [Int] {
+        (0..<4).sorted { result.finalScores[$0].points > result.finalScores[$1].points }
+    }
 
     var body: some View {
         ZStack {
             Color.black.opacity(0.75).ignoresSafeArea()
 
-            // ダイアログ（中央）
-            VStack(spacing: 0) {
-                headerRow
-                Divider().background(Color.white.opacity(0.25))
+            VStack(spacing: 16) {
+                // ダイアログ
+                VStack(spacing: 8) {
+                    Text("対局結果")
+                        .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(goldColor)
+                        .tracking(4)
+                        .shadow(color: .black.opacity(0.9), radius: 2)
 
-                ScrollView(.vertical, showsIndicators: false) {
                     VStack(spacing: 0) {
-                        ForEach(result.roundHistory.indices, id: \.self) { i in
-                            roundRow(result.roundHistory[i])
-                                .background(i % 2 == 0
-                                    ? Color.clear
-                                    : Color.white.opacity(0.03))
+                        headerRow
+                        Divider().background(goldColor.opacity(0.25))
+
+                        VStack(spacing: 0) {
+                            ForEach(Array(rankedIndices.enumerated()), id: \.offset) { offset, playerIdx in
+                                summaryRow(rank: offset + 1, playerIdx: playerIdx)
+                                    .background(offset % 2 == 0
+                                        ? Color.clear
+                                        : goldColor.opacity(0.06))
+                            }
                         }
                     }
                 }
-                .frame(maxHeight: CGFloat(min(result.roundHistory.count, 8)) * 28)
+                .padding(14)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.ultraThinMaterial)
+                        .overlay(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.35)))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(goldColor.opacity(0.5), lineWidth: 1)
+                        )
+                )
+                .frame(maxWidth: 460)
 
-                Divider().background(Color.white.opacity(0.25))
-                defenRow
-                Divider().background(Color.white.opacity(0.1))
-                pointRow
-            }
-            .padding(16)
-            .background(Color(red: 0.10, green: 0.10, blue: 0.16))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.15), lineWidth: 1)
-            )
-            .frame(maxWidth: 460)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.leading, 40)
-            .padding(.vertical, 24)
-
-            // 対局終了ボタン（右下）
-            VStack {
-                Spacer()
-                HStack {
-                    Spacer()
-                    Button {
-                        onDismiss()
-                    } label: {
+                // 対局終了ボタン
+                Button {
+                    onDismiss()
+                } label: {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(goldColor.opacity(0.25))
+                            .blur(radius: 8)
+                        RoundedRectangle(cornerRadius: 4)
+                            .stroke(
+                                LinearGradient(colors: [goldLightColor, goldColor],
+                                               startPoint: .topLeading, endPoint: .bottomTrailing),
+                                lineWidth: 1.5)
+                            .background(RoundedRectangle(cornerRadius: 4).fill(Color.black.opacity(0.4)))
                         Text("対局終了")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(.yellow)
-                            .frame(width: 160, height: 52)
-                            .background(Color.black.opacity(0.8))
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.yellow.opacity(0.7), lineWidth: 1.5)
-                            )
+                            .font(.system(size: 16, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(
+                                LinearGradient(colors: [goldLightColor, goldColor],
+                                               startPoint: .leading, endPoint: .trailing))
+                            .tracking(4)
                     }
-                    .padding(.trailing, 24)
-                    .padding(.bottom, 24)
+                    .frame(width: 200, height: 46)
+                    .contentShape(Rectangle())
                 }
             }
+            .offset(y: 15)
         }
     }
 
-    // MARK: - ヘッダー行（プレイヤー名）
+    // MARK: - ヘッダー行
     private var headerRow: some View {
         HStack(spacing: 0) {
-            Spacer().frame(width: colJushu + colHonba)
-            ForEach(0..<4, id: \.self) { i in
-                Text(playerNames[i])
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundColor(.white)
-                    .frame(width: colPlayer)
-                    .padding(.leading, colGap)
-            }
-        }
-        .padding(.vertical, 7)
-    }
-
-    // MARK: - 各局の行
-    private func roundRow(_ record: RoundRecord) -> some View {
-        HStack(spacing: 0) {
-            Text(record.jushu.rawValue)
-                .font(.system(size: 13))
-                .foregroundColor(.gray)
-                .frame(width: colJushu, alignment: .leading)
-
-            Text("\(record.honba)本場")
-                .font(.system(size: 13))
-                .foregroundColor(.gray)
-                .frame(width: colHonba, alignment: .leading)
-
-            ForEach(0..<4, id: \.self) { i in
-                playerCell(record: record, playerIdx: i)
-            }
+            headerCell("プレイヤー名", width: colPlayer, alignment: .leading)
+            headerCell("順位",       width: colRank)
+            headerCell("最終持ち点", width: colScore)
+            headerCell("リーチ回数", width: colStat)
+            headerCell("和了回数",   width: colStat)
+            headerCell("放銃回数",   width: colStat)
         }
         .padding(.vertical, 5)
     }
 
-    private func playerCell(record: RoundRecord, playerIdx: Int) -> some View {
-        let diff     = record.scoreChanges.indices.contains(playerIdx) ? record.scoreChanges[playerIdx] : 0
-        let isDealer = playerIdx == record.dealerPlayer
-
-        return HStack(spacing: 2) {
-            Text(isDealer ? "親" : "　")
-                .font(.system(size: 13))
-                .foregroundColor(.yellow)
-            Text(diffText(diff))
-                .font(.system(size: 13, design: .monospaced))
-                .foregroundColor(diffColor(diff))
-                .frame(maxWidth: .infinity, alignment: .trailing)
-        }
-        .padding(.horizontal, 4)
-        .frame(width: colPlayer)
-        .padding(.leading, colGap)
+    private func headerCell(_ title: String, width: CGFloat, alignment: Alignment = .center) -> some View {
+        Text(title)
+            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+            .foregroundStyle(goldLightColor.opacity(0.85))
+            .frame(width: width, alignment: alignment)
     }
 
-    // MARK: - フッター: 最終得点
-    private var defenRow: some View {
-        let maxPts = result.finalScores.map { $0.points }.max() ?? 0
+    // MARK: - 各プレイヤーの行
+    private func summaryRow(rank: Int, playerIdx: Int) -> some View {
+        let pts = result.finalScores[playerIdx].points
+        let pt  = result.finalPoints[playerIdx]
+
         return HStack(spacing: 0) {
-            Spacer().frame(width: colJushu + colHonba)
-            ForEach(0..<4, id: \.self) { i in
-                let pts = result.finalScores.indices.contains(i) ? result.finalScores[i].points : 0
+            Text(playerNames[playerIdx])
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .foregroundStyle(goldLightColor)
+                .frame(width: colPlayer, alignment: .leading)
+
+            Text("\(rank)位")
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(rank == 1 ? goldColor : goldLightColor)
+                .frame(width: colRank)
+
+            VStack(spacing: 1) {
                 Text(formatScore(pts))
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundColor(pts == maxPts ? .green : .white)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.horizontal, 4)
-                    .frame(width: colPlayer)
-                    .padding(.leading, colGap)
-            }
-        }
-        .padding(.vertical, 6)
-    }
-
-    // MARK: - フッター: 最終ポイント
-    private var pointRow: some View {
-        HStack(spacing: 0) {
-            Spacer().frame(width: colJushu + colHonba)
-            ForEach(0..<4, id: \.self) { i in
-                let pt = result.finalPoints.indices.contains(i) ? result.finalPoints[i] : 0.0
-                Text(formatPoint(pt))
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .font(.system(size: 14, weight: .bold, design: .monospaced))
+                    .foregroundStyle(goldLightColor)
+                Text("(\(formatPoint(pt)))")
+                    .font(.system(size: 11, design: .monospaced))
                     .foregroundColor(pt >= 0 ? .green : .red)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.horizontal, 10)
-                    .frame(width: colPlayer)
-                    .padding(.leading, colGap)
             }
+            .frame(width: colScore)
+
+            Text("\(lizhiCount(playerIdx))")
+                .font(.system(size: 14, design: .monospaced))
+                .foregroundStyle(goldLightColor.opacity(0.85))
+                .frame(width: colStat)
+
+            Text("\(agariCount(playerIdx))")
+                .font(.system(size: 14, design: .monospaced))
+                .foregroundStyle(goldLightColor.opacity(0.85))
+                .frame(width: colStat)
+
+            Text("\(houjuuCount(playerIdx))")
+                .font(.system(size: 14, design: .monospaced))
+                .foregroundStyle(goldLightColor.opacity(0.85))
+                .frame(width: colStat)
         }
         .padding(.vertical, 6)
     }
 
-    // MARK: - Helpers
-    private func kindLabel(_ record: RoundRecord) -> String {
-        if let label = record.kind.pingjuLabel { return label }
-        let name = record.hulePlayer.map { playerNames[$0] } ?? ""
-        return record.kind == .zimo ? "\(name) ツモ" : "\(name) ロン"
+    // MARK: - 集計ヘルパー
+    private func lizhiCount(_ playerIdx: Int) -> Int {
+        result.roundHistory.filter { $0.lizhiPlayers.contains(playerIdx) }.count
     }
 
-    private func diffText(_ diff: Int) -> String {
-        guard diff != 0 else { return "" }
-        let sign = diff > 0 ? "+" : ""
-        let n = NumberFormatter()
-        n.numberStyle = .decimal
-        let s = n.string(from: NSNumber(value: diff)) ?? "\(diff)"
-        return "\(sign)\(s)"
+    private func agariCount(_ playerIdx: Int) -> Int {
+        result.roundHistory.filter { $0.hulePlayer == playerIdx }.count
     }
 
-    private func diffColor(_ diff: Int) -> Color {
-        if diff > 0 { return .green }
-        if diff < 0 { return .red }
-        return .clear
+    private func houjuuCount(_ playerIdx: Int) -> Int {
+        result.roundHistory.filter {
+            $0.kind == .rong
+                && $0.scoreChanges.indices.contains(playerIdx)
+                && $0.scoreChanges[playerIdx] < 0
+        }.count
     }
 
-    private func scoreColor(_ pts: Int) -> Color {
-        if pts > 30000 { return .green }
-        if pts < 0     { return .red }
-        return .white
-    }
-
+    // MARK: - Format
     private func formatScore(_ pts: Int) -> String {
         let n = NumberFormatter()
         n.numberStyle = .decimal
@@ -224,7 +199,7 @@ struct GameResultView: View {
         RoundRecord(jushu: .東三局, honba: 0, kind: .rong,  hulePlayer: 3, dealerPlayer: 2, scoreChanges: [-7700, 0, 0,    +8700 ], lizhiPlayers: [2]),
         RoundRecord(jushu: .東四局, honba: 0, kind: .rong,  hulePlayer: 2, dealerPlayer: 3, scoreChanges: [-2600, 0, +3600, 0    ], lizhiPlayers: [2]),
         RoundRecord(jushu: .南一局, honba: 0, kind: .rong,  hulePlayer: 3, dealerPlayer: 0, scoreChanges: [-8000, 0, 0,    +8000 ], lizhiPlayers: []),
-        
+
     ]
     let finalScores: [(feng: Feng, points: Int)] = [
         (feng: .西, points: -6800),

@@ -6,7 +6,7 @@ struct TenpaiCutInView: View {
     @State private var opacity: Double = 0.0
 
     var body: some View {
-        Image("tenpai")
+        Image("original/tenpai")
             .resizable()
             .scaledToFit()
             .frame(height: 120)

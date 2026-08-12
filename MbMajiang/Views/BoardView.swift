@@ -15,6 +15,10 @@ struct BoardView: View {
     private let autoStart: Bool
     /// デバッグ: 全プレイヤーの手牌を公開するトグル
     @State private var revealAll: Bool = false
+    @State private var teyakuListActive: Bool = false
+    @State private var howToPlayActive: Bool = false
+    /// 手役一覧パネルで折りたたまれている区分（1翻〜ダブル役満）。初期状態は1翻のみ展開
+    @State private var collapsedYakuCategories: Set<YakuCategory> = Set(YakuCategory.allCases.filter { $0 != .one })
     @State private var showQuitAlert = false
     @State private var isBGMMuted = false
     @State private var hasStarted: Bool
@@ -50,7 +54,9 @@ struct BoardView: View {
 
     var body: some View {
         ZStack {
-            BackgroundLayer(imageName: game.settings.boardTheme.imageName)
+            BackgroundLayer(imageName: game.settings.effectiveBoardImageName,
+                             overlayImage: game.settings.boardTheme == .canvas ? game.settings.boardCanvasImage : nil,
+                             color: game.settings.boardBackgroundColor)
 
             VStack {
                 Spacer()
@@ -199,6 +205,45 @@ struct BoardView: View {
                         .background(Color.black.opacity(0.4))
                         .clipShape(Circle())
                     }
+                    // 手牌表示トグル（設定で有効時のみ、鳴きボタンの下に表示）
+                    if game.settings.showHandDisplayOption {
+                        Button {
+                            revealAll.toggle()
+                        } label: {
+                            Image(systemName: revealAll ? "eye.fill" : "eye.slash.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(revealAll ? .yellow : .white.opacity(0.7))
+                                .frame(width: 38, height: 38)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Circle())
+                        }
+                    }
+                    // 手役一覧トグル（設定で有効時のみ、鳴きボタン列の一番下に表示）
+                    if game.settings.showTeyakuList {
+                        Button {
+                            teyakuListActive.toggle()
+                        } label: {
+                            Text("役")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(teyakuListActive ? .yellow : .white.opacity(0.7))
+                                .frame(width: 38, height: 38)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Circle())
+                        }
+                    }
+                    // 遊び方トグル（設定で有効時のみ、手役一覧の下に表示）
+                    if game.settings.showHowToPlayAssist {
+                        Button {
+                            howToPlayActive.toggle()
+                        } label: {
+                            Text("遊")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(howToPlayActive ? .yellow : .white.opacity(0.7))
+                                .frame(width: 38, height: 38)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Circle())
+                        }
+                    }
                     Spacer()
                 }
                 .padding(.leading, 12)
@@ -212,29 +257,19 @@ struct BoardView: View {
                     .offset(y: 0)
             }
 
-            // 手牌表示トグル（設定で有効時のみ表示）
-            if game.settings.showHandDisplayOption {
-                VStack {
-                    HStack {
-                        Spacer()
-                        Button {
-                            revealAll.toggle()
-                        } label: {
-                            Image(systemName: revealAll ? "eye.fill" : "eye.slash.fill")
-                                .font(.system(size: 18))
-                                .foregroundColor(revealAll ? .yellow : .white.opacity(0.5))
-                                .padding(10)
-                                .background(Color.black.opacity(0.4))
-                                .clipShape(Circle())
-                        }
-                        .padding(.trailing, 12)
-                        .padding(.top, 12)
-                    }
-                    Spacer()
-                }
+            // 手役一覧パネル（役ボタンがオンの間、現在の画面にオーバーラップして表示）
+            if teyakuListActive {
+                teyakuListPanel
+            }
+
+            // 遊び方パネル（遊ボタンがオンの間、現在の画面にオーバーラップして表示。CPU対局の開始は行わない）
+            if howToPlayActive {
+                howToPlayPanel
             }
         }
         .environment(\.tileTheme, game.settings.tileTheme)
+        .environment(\.genericTileColors, game.settings.genericTileColors)
+        .environment(\.tileBackColor, game.settings.effectiveTileBackAppearance)
         .onTapGesture {
             game.pendingDapaiIndex = nil
             game.machiTiles = []
@@ -335,7 +370,7 @@ struct BoardView: View {
             if active { SoundManager.shared.stopBGM() }
         }
         .onChange(of: game.roundCutInRoundNames) { _, names in
-            if !names.isEmpty { SoundManager.shared.playBGM(game.board.score.round.bgmName) }
+            if !names.isEmpty { SoundManager.shared.playBGM(game.currentBgmName) }
         }
         .alert("対局を終了しますか？", isPresented: $showQuitAlert) {
             Button("終了", role: .destructive) { dismiss() }
@@ -344,7 +379,7 @@ struct BoardView: View {
         .onAppear {
             setupGame()
             if hasStarted {
-                SoundManager.shared.playBGM(game.board.score.round.bgmName)
+                SoundManager.shared.playBGM(game.currentBgmName)
             }
         }
         .onDisappear {
@@ -387,37 +422,7 @@ struct BoardView: View {
                     .tracking(4)
                     .shadow(color: .black.opacity(0.9), radius: 2)
 
-                HStack(spacing: 8) {
-                    Text("局数")
-                        .font(.system(size: 12, design: .monospaced))
-                        .foregroundStyle(goldLightColor.opacity(0.85))
-                        .shadow(color: .black.opacity(0.9), radius: 2)
-                    Spacer()
-                    Picker("局数", selection: Bindable(game.settings).kyokuCount) {
-                        ForEach(GameSettings.KyokuCount.allCases, id: \.self) { option in
-                            Text(option.rawValue).tag(option)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .fixedSize()
-                }
-                .frame(width: 260)
-
-                cpuStyleUnifiedRow
-
-                assistToggleRow
-
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) { showCustomDetails.toggle() }
-                } label: {
-                    HStack(spacing: 4) {
-                        Text(showCustomDetails ? "詳細設定を閉じる" : "詳細設定を開く")
-                        Image(systemName: showCustomDetails ? "chevron.left" : "chevron.right")
-                            .font(.system(size: 10))
-                    }
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(goldColor.opacity(0.85))
-                }
+                rulesTabContent
 
                 Button {
                     startGame()
@@ -470,10 +475,142 @@ struct BoardView: View {
         )
     }
 
+    // MARK: - 手役一覧パネル
+    private var teyakuListPanel: some View {
+        VStack(spacing: 12) {
+            Text("手役一覧")
+                .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                .foregroundStyle(goldColor)
+                .tracking(4)
+                .shadow(color: .black.opacity(0.9), radius: 2)
+
+            ScrollView {
+                VStack(spacing: 10) {
+                    ForEach(YakuReferenceData.groupedEntries, id: \.category) { group in
+                        yakuCategorySection(group.category, entries: group.entries)
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .frame(width: 420, height: 300)
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 10)
+                .fill(.ultraThinMaterial)
+                .overlay(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.35)))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(goldColor.opacity(0.5), lineWidth: 1)
+                )
+        )
+    }
+
+    private func yakuCategorySection(_ category: YakuCategory, entries: [YakuReferenceEntry]) -> some View {
+        let isExpanded = !collapsedYakuCategories.contains(category)
+        return VStack(alignment: .leading, spacing: isExpanded ? 10 : 0) {
+            Button {
+                if isExpanded {
+                    collapsedYakuCategories.insert(category)
+                } else {
+                    collapsedYakuCategories.remove(category)
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 11, weight: .bold))
+                        .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                    Text(category.label)
+                        .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    Spacer()
+                    Text("\(entries.count)")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(goldColor.opacity(0.6))
+                }
+                .foregroundStyle(goldColor)
+                .tracking(2)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+
+            if isExpanded {
+                ForEach(entries, id: \.name) { entry in
+                    yakuReferenceRow(entry)
+                }
+            }
+        }
+    }
+
+    // MARK: - 遊び方パネル
+    private var howToPlayPanel: some View {
+        HowToPlayCardView(showStartGameButton: false)
+            .environment(\.tileBackColor, game.settings.effectiveTileBackAppearance)
+    }
+
+    private func yakuReferenceRow(_ entry: YakuReferenceEntry) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            HStack(spacing: 6) {
+                Text(entry.name)
+                    .font(.system(size: 14, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(goldLightColor)
+                Text(entry.fanshu)
+                    .font(.system(size: 12, design: .monospaced))
+                    .foregroundStyle(goldColor.opacity(0.8))
+            }
+            HStack(alignment: .bottom, spacing: 4) {
+                if !entry.tiles.isEmpty {
+                    HStack(spacing: 1) {
+                        ForEach(entry.tiles.indices, id: \.self) { i in
+                            PaiView(pai: Pai(entry.tiles[i]))
+                                .scaleEffect(0.9)
+                                .frame(width: 22 * 0.9, height: 30 * 0.9)
+                        }
+                    }
+                }
+                ForEach(entry.melds.indices, id: \.self) { m in
+                    FulouGroupView(group: entry.melds[m])
+                        .scaleEffect(0.9)
+                        .frame(width: FulouGroupView.width(of: entry.melds[m]) * 0.9, height: 30 * 0.9)
+                }
+            }
+            Text("▲" + entry.condition)
+                .font(.system(size: 11, design: .monospaced))
+                .foregroundStyle(goldLightColor.opacity(0.65))
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var rulesTabContent: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Text("局数")
+                    .font(.system(size: 15, design: .monospaced))
+                    .foregroundStyle(goldLightColor.opacity(0.85))
+                    .shadow(color: .black.opacity(0.9), radius: 2)
+                Spacer()
+                Picker("局数", selection: Bindable(game.settings).kyokuCount) {
+                    ForEach(GameSettings.KyokuCount.allCases, id: \.self) { option in
+                        Text(option.rawValue).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .fixedSize()
+            }
+            .frame(width: 260)
+
+            cpuStyleUnifiedRow
+
+            assistToggleRow
+
+            detailSettingsToggleRow
+        }
+    }
+
     private var assistToggleRow: some View {
         HStack(spacing: 8) {
             Text("アシスト機能")
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 15, design: .monospaced))
                 .foregroundStyle(goldLightColor.opacity(0.85))
                 .shadow(color: .black.opacity(0.9), radius: 2)
             Spacer()
@@ -483,6 +620,8 @@ struct BoardView: View {
                     game.settings.dapaiAssist = newValue
                     game.settings.agariHaiDisplay = newValue
                     game.settings.fulouAssist = newValue
+                    game.settings.showTeyakuList = newValue
+                    game.settings.showHowToPlayAssist = newValue
                 }
             ))
             .labelsHidden()
@@ -491,10 +630,35 @@ struct BoardView: View {
         .frame(width: 260)
     }
 
+    private var detailSettingsToggleRow: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { showCustomDetails.toggle() }
+        } label: {
+            HStack(spacing: 8) {
+                Text("詳細設定")
+                    .font(.system(size: 15, design: .monospaced))
+                    .foregroundStyle(goldLightColor.opacity(0.85))
+                    .shadow(color: .black.opacity(0.9), radius: 2)
+                Spacer()
+                HStack(spacing: 4) {
+                    Text(showCustomDetails ? "閉じる" : "開く")
+                    Image(systemName: showCustomDetails ? "chevron.left" : "chevron.right")
+                        .font(.system(size: 10))
+                }
+                .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                .foregroundStyle(goldColor.opacity(0.85))
+            }
+            .frame(width: 260)
+            .padding(.vertical, 14)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
     private var cpuStyleUnifiedRow: some View {
         HStack(spacing: 8) {
             Text("CPUの強さ")
-                .font(.system(size: 12, design: .monospaced))
+                .font(.system(size: 15, design: .monospaced))
                 .foregroundStyle(goldLightColor.opacity(0.85))
                 .shadow(color: .black.opacity(0.9), radius: 2)
             Spacer()
@@ -506,8 +670,8 @@ struct BoardView: View {
                     }
                 }
             )) {
-                ForEach(GameSettings.CpuStyle.allCases, id: \.self) { style in
-                    Text(style.rawValue).tag(style)
+                ForEach(GameSettings.CpuStyle.simplePanelCases, id: \.self) { style in
+                    Text(style.simplePanelLabel).tag(style)
                 }
             }
             .pickerStyle(.menu)
@@ -532,7 +696,7 @@ struct BoardView: View {
         game = Game(settings: game.settings)
         game.start()
         hasStarted = true
-        SoundManager.shared.playBGM(game.board.score.round.bgmName)
+        SoundManager.shared.playBGM(game.currentBgmName)
     }
 }
 

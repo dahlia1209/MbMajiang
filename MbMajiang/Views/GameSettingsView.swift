@@ -180,7 +180,6 @@ struct GameSettingsView: View {
 
     private var displayDetail: some View {
         VStack(alignment: .leading, spacing: 16) {
-            radioRow("牌デザイン", selection: Bindable(settings).tileTheme)
             boolRow("アガリ牌表示", isOn: Bindable(settings).agariHaiDisplay)
             boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
             boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)
@@ -288,7 +287,7 @@ struct GameSettingsView: View {
 
     private func rowLabel(_ title: String) -> some View {
         Text(title)
-            .font(.system(size: 13, weight: .medium))
+            .font(.system(size: 15, weight: .medium))
             .foregroundStyle(goldLight)
             .frame(width: labelW, alignment: .leading)
     }

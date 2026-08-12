@@ -43,17 +43,17 @@ struct Score {
             }
         }
 
-        var bgmName: String {
+        /// GameSettings.bgmByRoundへのインデックス（0=東一局...7=南四局、終局は南四局と同じ扱い）
+        var bgmIndex: Int {
             switch self {
-            case .東一局: return "GameBGM/tong1"
-            case .東二局: return "GameBGM/tong2"
-            case .東三局: return "GameBGM/tong3"
-            case .東四局: return "GameBGM/tong4"
-            case .南一局: return "GameBGM/nan1"
-            case .南二局: return "GameBGM/nan2"
-            case .南三局: return "GameBGM/nan3"
-            case .南四局: return "GameBGM/nan4"
-            case .終局:   return "GameBGM/nan4"
+            case .東一局: return 0
+            case .東二局: return 1
+            case .東三局: return 2
+            case .東四局: return 3
+            case .南一局: return 4
+            case .南二局: return 5
+            case .南三局: return 6
+            case .南四局, .終局: return 7
             }
         }
     }

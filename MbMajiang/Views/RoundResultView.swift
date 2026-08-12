@@ -335,7 +335,7 @@ struct RoundResultView: View {
     private var jicunRow: some View {
         HStack(spacing: 20) {
             HStack(spacing: 6) {
-                Image("100")
+                Image("original/100")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 6)
@@ -344,7 +344,7 @@ struct RoundResultView: View {
                     .foregroundColor(.white)
             }
             HStack(spacing: 6) {
-                Image("1000")
+                Image("original/1000")
                     .resizable()
                     .scaledToFit()
                     .frame(height: 6)

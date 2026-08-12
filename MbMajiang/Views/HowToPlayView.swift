@@ -2,12 +2,13 @@ import SwiftUI
 
 struct HowToPlayView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(GameSettings.self) private var settings
     @State private var game = Game()
-    @State private var showQuitAlert = false
+    @State private var startedGame: Game? = nil
 
     var body: some View {
         ZStack {
-            BackgroundLayer(imageName: game.settings.boardTheme.imageName)
+            BackgroundLayer(imageName: game.settings.effectiveBoardImageName, color: game.settings.boardBackgroundColor)
 
             VStack {
                 Spacer()
@@ -41,11 +42,19 @@ struct HowToPlayView: View {
                 .offset(y: 290)
                 .rotationEffect(.degrees(90))
 
+            HowToPlayCardView(showStartGameButton: true) {
+                var transaction = Transaction()
+                transaction.disablesAnimations = true
+                withTransaction(transaction) {
+                    startedGame = Game(settings: settings)
+                }
+            }
+
             closeButton
         }
-        .alert("遊び方を終了しますか？", isPresented: $showQuitAlert) {
-            Button("終了", role: .destructive) { dismiss() }
-            Button("キャンセル", role: .cancel) {}
+        .environment(\.tileBackColor, settings.effectiveTileBackAppearance)
+        .fullScreenCover(item: $startedGame) { game in
+            BoardView(game: game, debugActions: [], autoStart: false, showStartButton: true)
         }
     }
 
@@ -54,7 +63,7 @@ struct HowToPlayView: View {
     private var closeButton: some View {
         VStack {
             HStack {
-                Button(action: { showQuitAlert = true }) {
+                Button(action: { dismiss() }) {
                     Text("×")
                         .font(.system(size: 18, weight: .bold))
                         .foregroundColor(.white.opacity(0.7))
@@ -73,4 +82,5 @@ struct HowToPlayView: View {
 
 #Preview(traits: .landscapeLeft) {
     HowToPlayView()
+        .environment(GameSettings())
 }

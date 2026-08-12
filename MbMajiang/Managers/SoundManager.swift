@@ -10,7 +10,7 @@ import AVFoundation
 class SoundManager {
     static let shared = SoundManager()
 
-    var soundTheme: GameSettings.SoundTheme = .standard
+    var soundTheme: GameSettings.SoundTheme = .original
 
     private var players: [String: AVAudioPlayer] = [:]
     private var bgmPlayer: AVAudioPlayer?

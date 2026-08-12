@@ -1,0 +1,102 @@
+{
+  "appPolicies" : {
+    "eula" : "",
+    "policies" : [
+      {
+        "locale" : "en_US",
+        "policyText" : "",
+        "policyURL" : ""
+      }
+    ]
+  },
+  "identifier" : "8148A79F-3E94-4D1D-BB6F-3CC916DE5C17",
+  "nonRenewingSubscriptions" : [
+
+  ],
+  "products" : [
+    {
+      "displayPrice" : "370",
+      "familyShareable" : false,
+      "internalID" : "1001",
+      "localizations" : [
+        {
+          "description" : "牌デザイン（表）の「カスタムカラー」で、RGBを自由に選んで好きな色に設定できるようになります",
+          "displayName" : "カスタムカラーアンロック",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "ryu-nakamura.MbMajiang.detailedColors",
+      "referenceName" : "カスタムカラーアンロック",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "370",
+      "familyShareable" : false,
+      "internalID" : "1002",
+      "localizations" : [
+        {
+          "description" : "牌デザイン（裏）の「ボーダー」テーマで、本数やカラーを自由に組み合わせた縞模様に設定できるようになります",
+          "displayName" : "ボーダーテーマアンロック",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "ryu-nakamura.MbMajiang.borderTheme",
+      "referenceName" : "ボーダーテーマアンロック",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "370",
+      "familyShareable" : false,
+      "internalID" : "1004",
+      "localizations" : [
+        {
+          "description" : "背景の「キャンバス」テーマで、自由に手書きした絵を対局の背景に設定できるようになります",
+          "displayName" : "キャンバステーマアンロック",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "ryu-nakamura.MbMajiang.canvasTheme",
+      "referenceName" : "キャンバステーマアンロック",
+      "type" : "NonConsumable"
+    },
+    {
+      "displayPrice" : "610",
+      "familyShareable" : false,
+      "internalID" : "1003",
+      "localizations" : [
+        {
+          "description" : "カスタムカラー・ボーダーテーマ・キャンバステーマ、全部まとめてお得にアンロックします",
+          "displayName" : "全部アンロック",
+          "locale" : "ja"
+        }
+      ],
+      "productID" : "ryu-nakamura.MbMajiang.allUnlock",
+      "referenceName" : "全部アンロック",
+      "type" : "NonConsumable"
+    }
+  ],
+  "settings" : {
+    "_applicationInternalID" : "0",
+    "_askToBuyEnabled" : false,
+    "_billingGracePeriodEnabled" : false,
+    "_billingIssuesEnabled" : false,
+    "_developerTeamID" : "0",
+    "_disableDialogs" : false,
+    "_failTransactionsEnabled" : false,
+    "_lastSynchronizedDate" : 0,
+    "_locale" : "ja",
+    "_renewalBillingIssuesEnabled" : false,
+    "_storefront" : "JPN",
+    "_storeKitErrors" : [
+
+    ],
+    "_timeRate" : 0
+  },
+  "subscriptionGroups" : [
+
+  ],
+  "version" : {
+    "major" : 5,
+    "minor" : 0
+  }
+}

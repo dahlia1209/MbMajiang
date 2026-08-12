@@ -6,7 +6,7 @@
 import SwiftUI
 
 private struct TileThemeKey: EnvironmentKey {
-    static let defaultValue: GameSettings.TileTheme = .standard
+    static let defaultValue: GameSettings.TileTheme = .original
 }
 
 extension EnvironmentValues {
