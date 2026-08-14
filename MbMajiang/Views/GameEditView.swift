@@ -12,6 +12,8 @@ struct GameEditView: View {
     @State private var showGenericTileDetail = false
     @State private var showTileBackDetail = false
     @State private var showCanvasDetail = false
+    /// 自家手牌の位置調整パネル。対局編集パネルとは独立させ、パネル表示アイコンで隠しても表示し続ける
+    @State private var showHandPositionPanel = false
     @State private var borderThemeSelected = false
     @State private var store = StoreManager.shared
     @State private var showShop = false
@@ -52,7 +54,7 @@ struct GameEditView: View {
 
     /// 左側パネルのアコーディオン開閉対象となるセクション
     private enum EditSection {
-        case tileFace, tileBack, background, bgm
+        case tileFace, tileBack, background, bgm, mahjongTable
     }
 
     /// アコーディオンの開閉を切り替える。開くセクションが変わる際は、開いていた詳細パネルも閉じる
@@ -121,7 +123,7 @@ struct GameEditView: View {
                 .rotationEffect(.degrees(90))
 
             ShoupaiView(shoupai: game.board.shan.shoupai[0], isTajia: false, scale: 1.5)
-                .offset(y: 180)
+                .offset(x: settings.handOffsetX, y: settings.handOffsetY)
             ShoupaiView(shoupai: game.board.shan.shoupai[1], isTajia: true)
                 .offset(y: 300)
                 .rotationEffect(.degrees(270))
@@ -134,6 +136,11 @@ struct GameEditView: View {
 
             if !isPanelHidden {
                 editPanel
+                    .transition(.opacity)
+            }
+
+            if showHandPositionPanel {
+                handPositionPanel
                     .transition(.opacity)
             }
 
@@ -240,6 +247,7 @@ struct GameEditView: View {
                         boardBackgroundSection
 
                         bgmSection
+                        mahjongTableSection
                     }
                     .padding(.vertical, 4)
                 }
@@ -379,15 +387,130 @@ struct GameEditView: View {
                     previewButton(settings.bgmBulkTrack)
                 }
                 .frame(width: 260)
+                .disabled(settings.bgmMode == .perRound)
+                .opacity(settings.bgmMode == .perRound ? 0.4 : 1)
 
-                detailToggleRow(label: "局ごとに設定", isOpen: showBgmDetail) {
-                    toggleDetailPanel(.bgm)
-                    if showBgmDetail {
-                        settings.bgmMode = .perRound
+                HStack(spacing: 8) {
+                    Color.clear.frame(width: 16)
+                    Text("局ごとに設定")
+                        .font(.system(size: 15, design: .monospaced))
+                        .foregroundStyle(goldLight.opacity(0.85))
+                    Spacer()
+                    Toggle("", isOn: Binding(
+                        get: { settings.bgmMode == .perRound },
+                        set: { newValue in
+                            settings.bgmMode = newValue ? .perRound : .bulk
+                            if !newValue { showBgmDetail = false }
+                        }
+                    ))
+                    .labelsHidden()
+                    .tint(gold)
+                }
+                .frame(width: 260)
+
+                if settings.bgmMode == .perRound {
+                    detailToggleRow(label: "", isOpen: showBgmDetail) {
+                        toggleDetailPanel(.bgm)
                     }
                 }
             }
         }
+    }
+
+    private var mahjongTableSection: some View {
+        VStack(spacing: 8) {
+            accordionHeader("麻雀卓", section: .mahjongTable)
+
+            if expandedSection == .mahjongTable {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) { showHandPositionPanel.toggle() }
+                } label: {
+                    HStack(spacing: 8) {
+                        Color.clear.frame(width: 16)
+                        Text("自家手牌")
+                            .font(.system(size: 15, design: .monospaced))
+                            .foregroundStyle(goldLight.opacity(0.85))
+                            .frame(width: 72, alignment: .leading)
+                        Spacer()
+                        HStack(spacing: 4) {
+                            Text("位置調整")
+                            Image(systemName: showHandPositionPanel ? "chevron.left" : "chevron.right")
+                                .font(.system(size: 10))
+                        }
+                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(gold.opacity(0.85))
+                    }
+                    .frame(width: 260)
+                    .padding(.vertical, 10)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+    }
+
+    /// 自家手牌の位置調整パネル。対局編集パネルとは独立した位置に表示し、手牌に被らないようにする
+    private var handPositionPanel: some View {
+        VStack {
+            HStack {
+                Spacer()
+                VStack(spacing: 12) {
+                    Text("自家手牌の位置")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(gold.opacity(0.8))
+                        .tracking(2)
+
+                    handPositionDPad
+
+                    Button {
+                        settings.handOffsetX = 0
+                        settings.handOffsetY = 180
+                    } label: {
+                        Text("リセット")
+                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(goldLight.opacity(0.7))
+                            .underline()
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(16)
+                .background(
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(.ultraThinMaterial)
+                        .overlay(RoundedRectangle(cornerRadius: 10).fill(Color.black.opacity(0.35)))
+                        .overlay(RoundedRectangle(cornerRadius: 10).stroke(gold.opacity(0.5), lineWidth: 1))
+                )
+                .padding(.top, 20)
+                .padding(.trailing, 20)
+            }
+            Spacer()
+        }
+    }
+
+    /// 自家手牌の位置を上下左右に微調整する十字キー
+    private var handPositionDPad: some View {
+        let step: Double = 4
+        return VStack(spacing: 6) {
+            handPositionDPadButton("chevron.up") { settings.handOffsetY -= step }
+            HStack(spacing: 6) {
+                handPositionDPadButton("chevron.left") { settings.handOffsetX -= step }
+                Color.clear.frame(width: 44, height: 44)
+                handPositionDPadButton("chevron.right") { settings.handOffsetX += step }
+            }
+            handPositionDPadButton("chevron.down") { settings.handOffsetY += step }
+        }
+    }
+
+    private func handPositionDPadButton(_ icon: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(goldLight)
+                .frame(width: 44, height: 44)
+                .background(Color.black.opacity(0.4))
+                .clipShape(Circle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func previewButton(_ track: GameSettings.BGMTrack) -> some View {

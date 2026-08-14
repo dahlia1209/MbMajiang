@@ -159,17 +159,8 @@ struct TitleView: View {
                 .opacity(subtitleOpacity)
 
             // ⑦ メインタイトル（大きく迫力ある）「レッツ」だけ文字間を詰める
-            (
-                Text("レッツ")
-                    .font(.custom("ShinRetroMaruGothic-Bold", size: 108))
-                    .tracking(-18)
-                +
-                Text(" ")
-                    .font(.custom("ShinRetroMaruGothic-Bold", size: 108))
-                +
-                Text("麻雀")
-                    .font(.custom("ShinRetroMaruGothic-Bold", size: 108))
-            )
+            mainTitleText
+                .font(.custom("ShinRetroMaruGothic-Bold", size: 108))
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
@@ -188,6 +179,15 @@ struct TitleView: View {
             decorativeDivider
         }
         .padding(.horizontal, 60)
+    }
+
+    /// 「レッツ 麻雀」のタイトル文字。「レッツ」だけ文字間を詰める（AttributedStringを1つのTextにまとめる。Text + Textの結合は非推奨のため）
+    private var mainTitleText: Text {
+        var lets = AttributedString("レッツ")
+        lets.tracking = -18
+        let space = AttributedString(" ")
+        let majiang = AttributedString("麻雀")
+        return Text(lets + space + majiang)
     }
 
     // MARK: - Decorative Divider

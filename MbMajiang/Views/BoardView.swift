@@ -17,6 +17,9 @@ struct BoardView: View {
     @State private var revealAll: Bool = false
     @State private var teyakuListActive: Bool = false
     @State private var howToPlayActive: Bool = false
+    @State private var dapaiHintActive: Bool = false
+    /// 打牌プレビューパネルの各行のラベル幅（「次巡ツモ有効牌：」の幅に合わせ、「：」の位置を全行で揃える）
+    private let dapaiPreviewLabelWidth: CGFloat = 88
     /// 手役一覧パネルで折りたたまれている区分（1翻〜ダブル役満）。初期状態は1翻のみ展開
     @State private var collapsedYakuCategories: Set<YakuCategory> = Set(YakuCategory.allCases.filter { $0 != .one })
     @State private var showQuitAlert = false
@@ -78,7 +81,7 @@ struct BoardView: View {
                 .offset(y: 200)
                 .rotationEffect(.degrees(90))
 
-            PlayerHandSection(game: game, hasStarted: hasStarted)
+            PlayerHandSection(game: game, hasStarted: hasStarted, dapaiHintActive: dapaiHintActive)
 
             ShoupaiView(shoupai: game.board.shan.shoupai[1], isTajia: !revealAll && !(isPingju && isTenpai(1)),
                         baopai: game.board.shan.wangpai.baopai.map { $0.normalized })
@@ -119,32 +122,72 @@ struct BoardView: View {
                 .offset(y: 120)
             }
             
-            // 待ち牌エリア（打牌アシスト有効時のみ）
-            if game.settings.agariHaiDisplay && !game.machiTiles.isEmpty {
-                VStack(spacing: 4) {
-                    if !game.machiFuritenSet.isEmpty {
+            // 打牌プレビュー（ヒントアイコンON時、打牌候補選択中に向聴数の変化と欲しい牌の残り枚数を表示）
+            if dapaiHintActive && game.pendingDapaiIndex != nil {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 4) {
+                        HStack(spacing: 4) {
+                            if let tile = pendingDapaiTileLabel {
+                                PaiView(tile)
+                                    .scaleEffect(0.7)
+                            }
+                            Text("打牌後：")
+                                .foregroundColor(.white)
+                        }
+                        .frame(width: dapaiPreviewLabelWidth, alignment: .trailing)
+                        afterShantenText
+                    }
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    HStack(spacing: 4) {
+                        Text("打牌前：")
+                            .foregroundColor(.white)
+                            .frame(width: dapaiPreviewLabelWidth, alignment: .trailing)
+                        beforeShantenText
+                    }
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    if game.dapaiPreviewFuriten {
                         Text("フリテン")
                             .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.orange)
+                            .foregroundColor(.white)
                     }
-                    HStack(spacing: 4) {
-                        ForEach(game.machiTiles, id: \.self) { tile in
-                            let hasYaku = game.machiYakuSet.contains(tile)
-                            VStack(spacing: 2) {
-                                PaiView(tile)
-                                Text(hasYaku ? "役有" : "役無")
-                                    .font(.system(size: 9, weight: .bold))
-                                    .foregroundColor(hasYaku ? .yellow : .white.opacity(0.4))
+                    if game.dapaiPreviewUsefulTiles.isEmpty {
+                        Text("有効牌なし")
+                            .font(.system(size: 10))
+                            .foregroundColor(.white.opacity(0.5))
+                    } else {
+                        HStack(spacing: 4) {
+                            Text(game.dapaiPreviewShantenAfter == 0 ? "待ち牌：" : "次巡ツモ有効牌：")
+                                .foregroundColor(.white)
+                                .frame(width: dapaiPreviewLabelWidth, alignment: .trailing)
+                            Text("\(game.dapaiPreviewUsefulTiles.reduce(0) { $0 + $1.count })枚（\(game.dapaiPreviewUsefulTiles.count)種）")
+                                .foregroundColor(.white)
+                        }
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 4) {
+                                ForEach(Array(game.dapaiPreviewUsefulTiles.enumerated()), id: \.offset) { _, item in
+                                    VStack(spacing: 2) {
+                                        PaiView(item.tile)
+                                        Text("\(item.count)枚")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundColor(item.count > 0 ? .white : .white.opacity(0.3))
+                                        if game.dapaiPreviewShantenAfter == 0 {
+                                            Text(item.hasYaku ? "役有" : "役無")
+                                                .font(.system(size: 8, weight: .bold))
+                                                .foregroundColor(item.hasYaku ? .white : .white.opacity(0.4))
+                                        }
+                                    }
+                                }
                             }
                         }
+                        .padding(.leading, dapaiPreviewLabelWidth + 4)
+                        .frame(maxWidth: 360)
                     }
                 }
-                .scaleEffect(1.4)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .background(Color.black.opacity(0.75))
                 .cornerRadius(10)
-                .offset(y: 110)
             }
 
             // infoMessage（フリテン・クイカエ等）
@@ -174,7 +217,11 @@ struct BoardView: View {
                     }
                     Button {
                         isBGMMuted.toggle()
-                        SoundManager.shared.setBGMMuted(isBGMMuted)
+                        if isBGMMuted {
+                            SoundManager.shared.stopBGM()
+                        } else {
+                            SoundManager.shared.playBGM(game.currentBgmName)
+                        }
                     } label: {
                         Image(systemName: isBGMMuted ? "speaker.slash.fill" : "speaker.fill")
                             .font(.system(size: 16))
@@ -204,6 +251,19 @@ struct BoardView: View {
                         .frame(width: 38, height: 38)
                         .background(Color.black.opacity(0.4))
                         .clipShape(Circle())
+                    }
+                    // 打牌アシストのヒントトグル（設定で有効時のみ、鳴きボタンの下に表示。ONの間だけ打牌アシストが有効になる）
+                    if game.settings.dapaiAssist {
+                        Button {
+                            dapaiHintActive.toggle()
+                        } label: {
+                            Text("打")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(dapaiHintActive ? .yellow : .white.opacity(0.7))
+                                .frame(width: 38, height: 38)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Circle())
+                        }
                     }
                     // 手牌表示トグル（設定で有効時のみ、鳴きボタンの下に表示）
                     if game.settings.showHandDisplayOption {
@@ -272,15 +332,17 @@ struct BoardView: View {
         .environment(\.tileBackColor, game.settings.effectiveTileBackAppearance)
         .onTapGesture {
             game.pendingDapaiIndex = nil
-            game.machiTiles = []
-            game.machiYakuSet = []
-            game.machiFuritenSet = []
+            game.dapaiPreviewShantenAfter = 99
+            game.dapaiPreviewUsefulTiles = []
+            game.dapaiPreviewStandardAfter = nil
+            game.dapaiPreviewOtherBreakdownAfter = ""
+            game.dapaiPreviewFuriten = false
         }
         // アクションバナー（ポンなど、ゲームを止めない）
         .overlay {
-            if let imageName = game.actionBannerImage {
-                ActionBannerView(imageName: imageName)
-                    .id(imageName)
+            if let text = game.actionBannerText {
+                ActionBannerView(text: text)
+                    .id(text)
                     .rotationEffect(bannerRotation(for: game.actionBannerPlayer))
                     .offset(bannerOffset(for: game.actionBannerPlayer))
                     .allowsHitTesting(false)
@@ -296,10 +358,10 @@ struct BoardView: View {
         }
         // 局開始カットイン
         .overlay {
-            if !game.roundCutInRoundNames.isEmpty {
+            if !game.roundCutInRoundText.isEmpty {
                 RoundCutInView(
-                    roundImageNames: game.roundCutInRoundNames,
-                    honbaImageNames: game.roundCutInHonbaNames
+                    roundText: game.roundCutInRoundText,
+                    honbaText: game.roundCutInHonbaText
                 ) {
                     game.dismissRoundCutIn()
                 }
@@ -308,8 +370,8 @@ struct BoardView: View {
         }
         // ツモ・ロンカットイン
         .overlay {
-            if let player = game.huleCutInPlayer, let imageName = game.huleCutInImageName {
-                HuleCutInView(imageName: imageName) {
+            if let player = game.huleCutInPlayer, let text = game.huleCutInText {
+                HuleCutInView(text: text) {
                     game.dismissHuleCutIn()
                 }
                 .rotationEffect(bannerRotation(for: player))
@@ -357,10 +419,15 @@ struct BoardView: View {
         }
         .onChange(of: game.isSelectingDapai) { _, isSelecting in
             if !isSelecting {
-                game.machiTiles = []
-                game.machiYakuSet = []
-                game.machiFuritenSet = []
                 game.pendingDapaiIndex = nil
+                game.dapaiPreviewShantenBefore = 99
+                game.dapaiPreviewShantenAfter = 99
+                game.dapaiPreviewUsefulTiles = []
+                game.dapaiPreviewStandardBefore = nil
+                game.dapaiPreviewStandardAfter = nil
+                game.dapaiPreviewOtherBreakdownBefore = ""
+                game.dapaiPreviewOtherBreakdownAfter = ""
+                game.dapaiPreviewFuriten = false
             }
         }
         .onChange(of: game.huleCutInPlayer) { _, player in
@@ -369,8 +436,8 @@ struct BoardView: View {
         .onChange(of: game.pingjuCutInActive) { _, active in
             if active { SoundManager.shared.stopBGM() }
         }
-        .onChange(of: game.roundCutInRoundNames) { _, names in
-            if !names.isEmpty { SoundManager.shared.playBGM(game.currentBgmName) }
+        .onChange(of: game.roundCutInRoundText) { _, text in
+            if !text.isEmpty && !isBGMMuted { SoundManager.shared.playBGM(game.currentBgmName) }
         }
         .alert("対局を終了しますか？", isPresented: $showQuitAlert) {
             Button("終了", role: .destructive) { dismiss() }
@@ -378,7 +445,7 @@ struct BoardView: View {
         }
         .onAppear {
             setupGame()
-            if hasStarted {
+            if hasStarted && !isBGMMuted {
                 SoundManager.shared.playBGM(game.currentBgmName)
             }
         }
@@ -618,7 +685,6 @@ struct BoardView: View {
                 get: { game.settings.dapaiAssist },
                 set: { newValue in
                     game.settings.dapaiAssist = newValue
-                    game.settings.agariHaiDisplay = newValue
                     game.settings.fulouAssist = newValue
                     game.settings.showTeyakuList = newValue
                     game.settings.showHowToPlayAssist = newValue
@@ -690,13 +756,105 @@ struct BoardView: View {
         hasStarted = true
     }
 
+    /// 打牌プレビュー用の向聴数表示（0は「テンパイ」、それ以外は「N向聴」）
+    private func shantenLabel(_ count: Int) -> String {
+        count == 0 ? "テンパイ" : "\(count)向聴"
+    }
+
+    private func coloredSegment(_ text: String, _ color: Color) -> AttributedString {
+        var segment = AttributedString(text)
+        segment.foregroundColor = color
+        return segment
+    }
+
+    /// 打牌前後でシャンテンが良くなったか悪くなったか
+    private enum ShantenChange {
+        case improved, worsened, same
+    }
+
+    /// 「N向聴（内訳）」のテキストを組み立てる共通処理。AttributedStringを1つのTextにまとめる（Text + Textの結合は非推奨のため）。
+    /// changeが.improvedなら向聴数と、previousStandardと比べて増えた面子・雀頭・塔子を緑で、
+    /// .worsenedなら向聴数と、減った面子・雀頭・塔子を赤で強調する
+    private func shantenBreakdownDisplayText(
+        shanten: Int,
+        standard: Hule.MianziBreakdown?,
+        other: String,
+        previousStandard: Hule.MianziBreakdown? = nil,
+        change: ShantenChange = .same
+    ) -> Text {
+        let shantenColor: Color = change == .improved ? .green : (change == .worsened ? .red : .white)
+        var result = coloredSegment(shantenLabel(shanten), shantenColor)
+        guard standard != nil || !other.isEmpty else { return Text(result) }
+        result += coloredSegment("（", .white)
+        if let standard {
+            func componentColor(_ current: Int, _ previous: (Hule.MianziBreakdown) -> Int) -> Color {
+                guard let prev = previousStandard.map(previous) else { return .white }
+                if change == .improved && current > prev { return .green }
+                if change == .worsened && current < prev { return .red }
+                return .white
+            }
+            result += coloredSegment("\(standard.mentsu)面子", componentColor(standard.mentsu) { $0.mentsu })
+            result += coloredSegment(" ", .white)
+            result += coloredSegment("\(standard.jantou)雀頭", componentColor(standard.jantou) { $0.jantou })
+            result += coloredSegment(" ", .white)
+            result += coloredSegment("\(standard.taatsu)塔子", componentColor(standard.taatsu) { $0.taatsu })
+            if !other.isEmpty {
+                result += coloredSegment("または", .white)
+            }
+        }
+        if !other.isEmpty {
+            result += coloredSegment(other, .white)
+        }
+        result += coloredSegment("）", .white)
+        return Text(result)
+    }
+
+    /// 打牌前（元の手牌）のシャンテン数と内訳
+    private var beforeShantenText: Text {
+        shantenBreakdownDisplayText(
+            shanten: game.dapaiPreviewShantenBefore,
+            standard: game.dapaiPreviewStandardBefore,
+            other: game.dapaiPreviewOtherBreakdownBefore
+        )
+    }
+
+    /// 打牌後のシャンテン数と内訳。打牌前より向聴が進む場合は緑、悪くなる場合は赤で強調する
+    private var afterShantenText: Text {
+        let change: ShantenChange
+        if game.dapaiPreviewShantenAfter < game.dapaiPreviewShantenBefore {
+            change = .improved
+        } else if game.dapaiPreviewShantenAfter > game.dapaiPreviewShantenBefore {
+            change = .worsened
+        } else {
+            change = .same
+        }
+        return shantenBreakdownDisplayText(
+            shanten: game.dapaiPreviewShantenAfter,
+            standard: game.dapaiPreviewStandardAfter,
+            other: game.dapaiPreviewOtherBreakdownAfter,
+            previousStandard: game.dapaiPreviewStandardBefore,
+            change: change
+        )
+    }
+
+    /// 打牌候補として選択中の牌のラベル（プレビューパネルに表示する牌画像用）
+    private var pendingDapaiTileLabel: String? {
+        guard let index = game.pendingDapaiIndex,
+              let human = game.humanPlayer else { return nil }
+        let tiles = human.shoupai.normalizedAllLabels
+        guard tiles.indices.contains(index) else { return nil }
+        return tiles[index]
+    }
+
     // 対局開始ボタン（手動開始）。ルールパネルで変更された設定を反映するため、この時点で配牌をやり直す
     private func startGame() {
         game.settings.save()
         game = Game(settings: game.settings)
         game.start()
         hasStarted = true
-        SoundManager.shared.playBGM(game.currentBgmName)
+        if !isBGMMuted {
+            SoundManager.shared.playBGM(game.currentBgmName)
+        }
     }
 }
 
@@ -706,35 +864,121 @@ struct BoardView: View {
 private struct PlayerHandSection: View {
     var game: Game
     var hasStarted: Bool
+    /// 打牌アシストのヒントトグルがONかどうか。ONの間だけ推奨打牌のハイライト・向聴数表示を行う
+    var dapaiHintActive: Bool
     @State private var cachedXiantingInfo: (count: Int, indices: Set<Int>) = (99, [])
 
     private static let allTileLabels: [String] =
-        (1...9).flatMap { n in ["m\(n)", "p\(n)", "s\(n)"] } + (1...7).map { "z\($0)" }
+        (1...9).map { "m\($0)" } + (1...9).map { "p\($0)" } + (1...9).map { "s\($0)" } + (1...7).map { "z\($0)" }
 
-    private func computeMachiForDiscard(at index: Int) -> (tiles: [String], yakuSet: Set<String>, furitenSet: Set<String>) {
-        guard game.settings.agariHaiDisplay else { return ([], [], []) }
-        guard let human = game.humanPlayer else { return ([], [], []) }
+
+    /// 打牌アシストのヒント用: 選択候補を打牌した後の向聴数と、向聴を進める（テンパイならアガれる）牌・残り枚数
+    private func computeDapaiPreview(at index: Int) -> (shantenAfter: Int, usefulTiles: [(tile: String, count: Int, hasYaku: Bool)], standard: Hule.MianziBreakdown?, other: String, furiten: Bool) {
+        guard let human = game.humanPlayer else { return (99, [], nil, "", false) }
         let tiles = human.shoupai.normalizedAllLabels
-        guard tiles.indices.contains(index) else { return ([], [], []) }
-        let hand = tiles.indices.filter { $0 != index }.map { tiles[$0] }
-        guard Hule.xiangting(hand) == 0 else { return ([], [], []) }
-        let he = game.board.shan.he[0]
-        let riverLabels = Set((he.qipai + he.calledPai).map { Pai.normalize($0.label) })
-        let selectedLabel = Pai.normalize(tiles[index])
-        let furitenCheckLabels = riverLabels.union([selectedLabel])
-        var machiSet = Set<String>()
-        var yakuSet = Set<String>()
+        guard tiles.indices.contains(index) else { return (99, [], nil, "", false) }
+        let hand13 = tiles.indices.filter { $0 != index }.map { tiles[$0] }
+        let shantenAfter = Hule.xiangting(hand13)
+        let counts = game.remainingCounts(for: 0)
+        func remaining(_ label: String) -> Int {
+            let base = counts[label] ?? 0
+            guard label.last == "5" else { return base }
+            return base + (counts["\(label.first!)0"] ?? 0)
+        }
+        var usefulTiles: [(tile: String, count: Int, hasYaku: Bool)] = []
         for tile in Self.allTileLabels {
-            let hand14 = (hand + [tile]).sorted()
-            if !Hule.winningDecompositions(hand14).isEmpty {
-                machiSet.insert(tile)
-                if game.checkMachiHasYaku(hand13: hand, winTile: tile) {
-                    yakuSet.insert(tile)
+            let hand14 = hand13 + [tile]
+            let improved: Bool
+            if shantenAfter == 0 {
+                improved = !Hule.winningDecompositions(hand14.sorted()).isEmpty
+            } else {
+                var best = 99
+                for i in hand14.indices {
+                    let reduced = hand14.indices.filter { $0 != i }.map { hand14[$0] }
+                    best = min(best, Hule.xiangting(reduced))
                 }
+                improved = best < shantenAfter
+            }
+            if improved {
+                let yakuOK = shantenAfter == 0 ? hasYaku(hand13: hand13, winTile: tile) : true
+                usefulTiles.append((tile, remaining(tile), yakuOK))
             }
         }
-        let furitenSet = machiSet.intersection(furitenCheckLabels)
-        return (tiles: Self.allTileLabels.filter { machiSet.contains($0) }, yakuSet: yakuSet, furitenSet: furitenSet)
+        var furiten = false
+        if shantenAfter == 0 {
+            let he = game.board.shan.he[0]
+            let riverLabels = Set((he.qipai + he.calledPai).map { Pai.normalize($0.label) })
+            let discardedLabel = Pai.normalize(tiles[index])
+            let furitenCheckLabels = riverLabels.union([discardedLabel])
+            furiten = usefulTiles.contains { furitenCheckLabels.contains($0.tile) }
+        }
+        let parts = shantenBreakdownParts(for: hand13, shanten: shantenAfter)
+        return (shantenAfter, usefulTiles, parts.standard, parts.other, furiten)
+    }
+
+    /// テンパイ時、指定の待ち牌でアガった場合に役があるかどうか
+    private func hasYaku(hand13: [String], winTile: String) -> Bool {
+        guard let human = game.humanPlayer else { return false }
+        let zhuangfeng: Feng = game.board.score.round.rawValue.hasPrefix("東") ? .東 : .南
+        let menfeng: Feng = game.board.score.defen[0].0
+        let normalized = Pai.normalize(winTile)
+        let context = HuleContext(
+            zhuangfeng: zhuangfeng,
+            menfeng: menfeng,
+            zimo: false,
+            menqian: human.status.isMenqian,
+            lizhi: human.status.isLizhi,
+            daburi: human.status.isDaburi,
+            yifa: false, qianggang: false, lingshang: false,
+            haidi: false, hedi: false, tianhu: false, dihu: false,
+            winTile: normalized,
+            renpuFu: game.settings.renpuFu == .four ? 4 : 2,
+            kuitanAri: game.settings.kuitanAri
+        )
+        let tiles = (hand13 + [normalized]).sorted()
+        let result = Hule.getYaku(
+            tiles: tiles,
+            context: context,
+            baopai: game.board.shan.wangpai.baopai.map { $0.label },
+            libaopai: [],
+            fulouTiles: human.shoupai.fulouTiles
+        )
+        return !result.yaku.isEmpty
+    }
+
+    /// 標準形の内訳（最もシャンテンが進む組み合わせが標準形の場合のみ）と、「N対子」「国士無双N向聴」のうち
+    /// 実際のシャンテン数と一致するものを「または」で並べたテキストを組み合わせて返す
+    private func shantenBreakdownParts(for hand13: [String], shanten: Int) -> (standard: Hule.MianziBreakdown?, other: String) {
+        let standard = Hule.mianziBreakdown(hand13)
+        let standardResult = standard.xiangting == shanten ? standard : nil
+        var otherParts: [String] = []
+        if hand13.count == 13 {
+            if Hule.chiitoitsuXiangting(hand13) == shanten {
+                otherParts.append("\(Hule.chiitoitsuPairCount(hand13))対子")
+            }
+            if Hule.kokushiXiangting(hand13) == shanten {
+                otherParts.append("国士無双\(shanten)向聴")
+            }
+        }
+        return (standardResult, otherParts.joined(separator: "または"))
+    }
+
+    private func assignDapaiPreview(at index: Int) {
+        guard dapaiHintActive else { return }
+        let preview = computeDapaiPreview(at: index)
+        game.dapaiPreviewShantenAfter = preview.shantenAfter
+        game.dapaiPreviewUsefulTiles = preview.usefulTiles
+        game.dapaiPreviewStandardAfter = preview.standard
+        game.dapaiPreviewOtherBreakdownAfter = preview.other
+        game.dapaiPreviewFuriten = preview.furiten
+    }
+
+    private func clearDapaiPreview() {
+        game.dapaiPreviewShantenAfter = 99
+        game.dapaiPreviewUsefulTiles = []
+        game.dapaiPreviewFuriten = false
+        game.dapaiPreviewStandardAfter = nil
+        game.dapaiPreviewOtherBreakdownAfter = ""
     }
 
     private var highlightedIndices: Set<Int>? {
@@ -800,32 +1044,22 @@ private struct PlayerHandSection: View {
                     if game.pendingDapaiIndex == index {
                         game.humanPlayer?.selectDapai(index)
                         game.pendingDapaiIndex = nil
-                        game.machiTiles = []
-                        game.machiYakuSet = []
-                        game.machiFuritenSet = []
+                        clearDapaiPreview()
                     } else {
                         game.pendingDapaiIndex = index
-                        let result = computeMachiForDiscard(at: index)
-                        game.machiTiles = result.tiles
-                        game.machiYakuSet = result.yakuSet
-                        game.machiFuritenSet = result.furitenSet
+                        assignDapaiPreview(at: index)
                     }
                 }
             } else if game.humanPlayer?.status.isSelectingRiichi == true {
-                // リーチ打牌選択: 2タップ方式（リーチ自体が役なので全待ち牌は役あり）
+                // リーチ打牌選択: 2タップ方式
                 return { index in
                     if game.pendingDapaiIndex == index {
                         game.humanPlayer?.selectDapai(index)
                         game.pendingDapaiIndex = nil
-                        game.machiTiles = []
-                        game.machiYakuSet = []
-                        game.machiFuritenSet = []
+                        clearDapaiPreview()
                     } else {
                         game.pendingDapaiIndex = index
-                        let result = computeMachiForDiscard(at: index)
-                        game.machiTiles = result.tiles
-                        game.machiYakuSet = Set(result.tiles)
-                        game.machiFuritenSet = result.furitenSet
+                        assignDapaiPreview(at: index)
                     }
                 }
             } else {
@@ -840,15 +1074,10 @@ private struct PlayerHandSection: View {
                     if game.pendingDapaiIndex == index {
                         game.humanPlayer?.selectDapai(index)
                         game.pendingDapaiIndex = nil
-                        game.machiTiles = []
-                        game.machiYakuSet = []
-                        game.machiFuritenSet = []
+                        clearDapaiPreview()
                     } else {
                         game.pendingDapaiIndex = index
-                        let result = computeMachiForDiscard(at: index)
-                        game.machiTiles = result.tiles
-                        game.machiYakuSet = result.yakuSet
-                        game.machiFuritenSet = result.furitenSet
+                        assignDapaiPreview(at: index)
                     }
                 }
             }
@@ -857,7 +1086,9 @@ private struct PlayerHandSection: View {
     }
 
     private var effectiveDiscardIndices: Set<Int> {
-        guard game.isSelectingDapai && game.settings.dapaiAssist else { return [] }
+        guard game.isSelectingDapai && dapaiHintActive else { return [] }
+        // シャンテンが進む（改善する）牌のみ青丸を表示。ツモ前の元の手牌のシャンテンより進まない場合は何も表示しない
+        guard cachedXiantingInfo.count < game.dapaiPreviewShantenBefore else { return [] }
         return cachedXiantingInfo.indices
     }
 
@@ -879,13 +1110,6 @@ private struct PlayerHandSection: View {
         return (best, indices)
     }
 
-    private var xiantingLabel: String {
-        switch cachedXiantingInfo.count {
-        case  0: return "テンパイ"
-        default: return "\(cachedXiantingInfo.count)向聴"
-        }
-    }
-
     var body: some View {
         ShoupaiView(
             shoupai: game.board.shan.shoupai[0],
@@ -901,23 +1125,19 @@ private struct PlayerHandSection: View {
             scale: 1.5,
             effectiveDiscardIndices: effectiveDiscardIndices
         )
-        .overlay(alignment: .topLeading) {
-            if game.isSelectingDapai && game.settings.dapaiAssist {
-                Text(xiantingLabel)
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.black.opacity(0.65))
-                    .cornerRadius(6)
-                    .fixedSize()
-                    .offset(x: 520, y: 180)
-            }
-        }
-        .offset(y: 180)
+        .offset(x: game.settings.handOffsetX, y: game.settings.handOffsetY)
         .onChange(of: game.isSelectingDapai) { _, isSelecting in
             if isSelecting {
                 cachedXiantingInfo = xiantingInfo
+                // ツモ牌を含めない、もともとの手牌（bingpaiのみ）でシャンテンを評価する
+                if let human = game.humanPlayer {
+                    let originalHand = human.shoupai.visibleLabels.map { Pai.normalize($0) }
+                    let shantenBefore = Hule.xiangting(originalHand)
+                    game.dapaiPreviewShantenBefore = shantenBefore
+                    let beforeParts = shantenBreakdownParts(for: originalHand, shanten: shantenBefore)
+                    game.dapaiPreviewStandardBefore = beforeParts.standard
+                    game.dapaiPreviewOtherBreakdownBefore = beforeParts.other
+                }
             } else {
                 game.pendingDapaiIndex = nil
                 cachedXiantingInfo = (99, [])

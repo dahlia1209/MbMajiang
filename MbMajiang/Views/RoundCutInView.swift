@@ -1,31 +1,17 @@
 import SwiftUI
 
 struct RoundCutInView: View {
-    let roundImageNames: [String]
-    let honbaImageNames: [String]
+    let roundText: String
+    let honbaText: String
     let onFinished: () -> Void
 
     @State private var opacity: Double = 0.0
 
     var body: some View {
         VStack(spacing: 4) {
-            HStack(spacing: 0) {
-                ForEach(roundImageNames, id: \.self) { name in
-                    Image(name)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(height: 80)
-                }
-            }
-            if !honbaImageNames.isEmpty {
-                HStack(spacing: 0) {
-                    ForEach(honbaImageNames, id: \.self) { name in
-                        Image(name)
-                            .resizable()
-                            .scaledToFit()
-                            .frame(height: 56)
-                    }
-                }
+            OshidashiText(text: roundText, size: 64)
+            if !honbaText.isEmpty {
+                OshidashiText(text: honbaText, size: 44)
             }
         }
         .opacity(opacity)

@@ -6,10 +6,7 @@ struct TenpaiCutInView: View {
     @State private var opacity: Double = 0.0
 
     var body: some View {
-        Image("original/tenpai")
-            .resizable()
-            .scaledToFit()
-            .frame(height: 120)
+        OshidashiText(text: "テンパイ", size: 80)
             .opacity(opacity)
             .onAppear {
                 SoundManager.shared.play("tenpai")

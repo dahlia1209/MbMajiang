@@ -33,7 +33,6 @@ struct DetailSettingsSection: View {
             }
             group("アシスト") {
                 boolRow("打牌アシスト", isOn: $settings.dapaiAssist)
-                boolRow("アガリ牌表示", isOn: $settings.agariHaiDisplay)
                 boolRow("副露アシスト", isOn: $settings.fulouAssist)
                 yesNoRow("手役一覧", isOn: $settings.showTeyakuList)
                 yesNoRow("遊び方", isOn: $settings.showHowToPlayAssist)

@@ -6,10 +6,7 @@ struct PingjuCutInView: View {
     @State private var opacity: Double = 0.0
 
     var body: some View {
-        Image("original/pingju")
-            .resizable()
-            .scaledToFit()
-            .frame(height: 120)
+        OshidashiText(text: "流局", size: 90)
             .opacity(opacity)
             .onAppear {
                 SoundManager.shared.play("pingju")

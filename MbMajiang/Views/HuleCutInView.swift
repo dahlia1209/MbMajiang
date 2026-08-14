@@ -1,16 +1,13 @@
 import SwiftUI
 
 struct HuleCutInView: View {
-    let imageName: String
+    let text: String
     let onFinished: () -> Void
 
     @State private var opacity: Double = 1.0
 
     var body: some View {
-        Image(imageName)
-            .resizable()
-            .scaledToFit()
-            .frame(height: 120)
+        OshidashiText(text: text, size: 90)
             .opacity(opacity)
             .onAppear {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {

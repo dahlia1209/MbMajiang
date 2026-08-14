@@ -49,7 +49,6 @@ final class GameSettings {
     var showHandDisplayOption: Bool = false
     var showTeyakuList: Bool = true
     var showHowToPlayAssist: Bool = true
-    var agariHaiDisplay: Bool = true
     var dapaiAssist: Bool = true
     var fulouAssist: Bool = true
     var thinkingTimeMode: ThinkingTimeMode = .unlimited
@@ -128,6 +127,9 @@ final class GameSettings {
     var boardBackgroundColorRed: Double = 55/255
     var boardBackgroundColorGreen: Double = 125/255
     var boardBackgroundColorBlue: Double = 45/255
+    /// 自家手牌（盤面の自分の手牌エリア）の表示位置調整（十字キーで上下左右に移動できる）
+    var handOffsetX: Double = 0
+    var handOffsetY: Double = 180
     /// 「キャンバス」テーマで選択中のキャンバス枠（キャンバス1〜5を切り替えて複数保存できる）
     var selectedCanvasSlot: CanvasSlot = .slot1
     /// キャンバス枠ごとの名前。未設定（空文字）の場合は「キャンバス1」のような既定名を表示する
@@ -153,7 +155,7 @@ final class GameSettings {
     /// 「ボーダー」テーマの帯の本数（2〜5）
     var tileBackBorderCount: Int = 2
     /// 簡易設定で選ぶボーダーの配色プリセット（本数・2色をまとめて切り替える）
-    var tileBackColorScheme: TileBackColorScheme = .original
+    var tileBackColorScheme: TileBackColorScheme = .lesserPanda
     /// 詳細設定（RGB自由選択）で使うボーダーのカスタムカラー
     var tileBackBorderColor1CustomRed: Double = 190/255
     var tileBackBorderColor1CustomGreen: Double = 60/255
@@ -164,9 +166,9 @@ final class GameSettings {
     /// BGMの設定方法。.bulkなら対局中ずっと1曲、.perRoundなら局ごとに個別の曲を再生する
     var bgmMode: BGMMode = .bulk
     /// 一括設定モードで使う固定の1曲
-    var bgmBulkTrack: BGMTrack = .jadeTiles
+    var bgmBulkTrack: BGMTrack = .nekonoSanpomichi
     /// 局ごとに設定モードで使う、東一局〜南四局それぞれに割り当てるBGM（インデックス0=東一局...7=南四局）
-    var bgmByRound: [BGMTrack] = [.jadeTiles, .oikaze, .shippu, .attakaOnsen, .senkoHanabi, .uchiageHanabi, .yunagi, .kaminokoe]
+    var bgmByRound: [BGMTrack] = [.nekonoSanpomichi, .oikaze, .shippu, .kingsTileDraw, .japaneseStyle1, .kaminokoe, .nekonoSanpomichi, .oikaze]
 
     // MARK: - 役満
     var yakumanFukugouAri: Bool = true
@@ -334,7 +336,6 @@ final class GameSettings {
     enum AnimalBoardBackground: String, CaseIterable, Hashable {
         case lesserPanda = "レッサーパンダ"
         case cat         = "ねこ"
-        case rabbit      = "うさぎ"
         case shiba       = "しばいぬ"
         case fox         = "きつね"
 
@@ -342,7 +343,6 @@ final class GameSettings {
             switch self {
             case .lesserPanda: return "original/boardBackgroundRedPanda"
             case .cat:         return "original/boardBackgroundCat"
-            case .rabbit:      return "original/boardBackgroundRabbit"
             case .shiba:       return "original/boardBackgroundShiba"
             case .fox:         return "original/boardBackgroundFox"
             }
@@ -396,24 +396,20 @@ final class GameSettings {
 
     /// 対局中に流せるBGMの一覧。各局（東一局〜南四局）に個別に割り当てる
     enum BGMTrack: String, CaseIterable, Hashable {
-        case jadeTiles     = "Jade Tiles"
+        case nekonoSanpomichi = "ねこのさんぽみち"
+        case kingsTileDraw = "嶺上開花"
+        case japaneseStyle1 = "和風のBGM"
         case oikaze        = "追い風"
         case shippu        = "疾風"
-        case attakaOnsen   = "あったか温泉"
-        case senkoHanabi   = "線香花火"
-        case uchiageHanabi = "打ち上げ花火"
-        case yunagi        = "夕凪"
         case kaminokoe     = "神ノ声"
 
         var bgmName: String {
             switch self {
-            case .jadeTiles:     return "BGM/GameBGM/jadetiles"
+            case .nekonoSanpomichi: return "BGM/GameBGM/nekonosanpomichi"
+            case .kingsTileDraw: return "BGM/GameBGM/kingstiledraw"
+            case .japaneseStyle1: return "BGM/GameBGM/japanesestyle1"
             case .oikaze:        return "BGM/GameBGM/oikaze"
             case .shippu:        return "BGM/GameBGM/shippu"
-            case .attakaOnsen:   return "BGM/GameBGM/attakaonsen"
-            case .senkoHanabi:   return "BGM/GameBGM/senkohanabi"
-            case .uchiageHanabi: return "BGM/GameBGM/uchiagehanabi"
-            case .yunagi:        return "BGM/GameBGM/yunagi"
             case .kaminokoe:     return "BGM/GameBGM/kaminokoe"
             }
         }
@@ -454,20 +450,20 @@ final class GameSettings {
 
     /// 「ボーダー」テーマの簡易設定で選べる配色プリセット（本数・2色をまとめて切り替える）
     enum TileBackColorScheme: String, CaseIterable, Hashable {
-        case original    = "デフォルト"
         case lesserPanda = "レッサーパンダ"
         case manul       = "マヌルネコ"
         case zebra       = "しまうま"
+        case tiger       = "とら"
         /// 本数・カラー1・カラー2を自由に設定する。実際の値は`tileBackColorMode`が`.detailed`の間は
         /// カスタム値を使うため、この`count`/`color1`/`color2`の値そのものは描画には使われない
         case custom      = "（カスタム）"
 
         var count: Int {
             switch self {
-            case .original:    return 2
             case .lesserPanda: return 5
             case .manul:       return 5
             case .zebra:       return 5
+            case .tiger:       return 5
             case .custom:      return 2
             }
         }
@@ -475,10 +471,10 @@ final class GameSettings {
         var color1: Color {
             func rgb(_ r: Double, _ g: Double, _ b: Double) -> Color { Color(red: r / 255, green: g / 255, blue: b / 255) }
             switch self {
-            case .original:    return rgb(190, 60, 60)
             case .lesserPanda: return rgb(196, 138, 82)
             case .manul:       return rgb(122, 124, 128)
             case .zebra:       return rgb(30, 30, 30)
+            case .tiger:       return rgb(235, 180, 30)
             case .custom:      return rgb(190, 60, 60)
             }
         }
@@ -486,10 +482,10 @@ final class GameSettings {
         var color2: Color {
             func rgb(_ r: Double, _ g: Double, _ b: Double) -> Color { Color(red: r / 255, green: g / 255, blue: b / 255) }
             switch self {
-            case .original:    return rgb(229, 179, 67)
             case .lesserPanda: return rgb(92, 55, 32)
             case .manul:       return rgb(238, 238, 233)
             case .zebra:       return rgb(245, 245, 240)
+            case .tiger:       return rgb(25, 20, 15)
             case .custom:      return rgb(229, 179, 67)
             }
         }
@@ -601,7 +597,6 @@ final class GameSettings {
         ud.set(showHandDisplayOption, forKey: "showHandDisplayOption")
         ud.set(showTeyakuList, forKey: "showTeyakuList")
         ud.set(showHowToPlayAssist, forKey: "showHowToPlayAssist")
-        ud.set(agariHaiDisplay, forKey: "agariHaiDisplay")
         ud.set(dapaiAssist, forKey: "dapaiAssist")
         ud.set(fulouAssist, forKey: "fulouAssist")
         ud.set(thinkingTimeMode.rawValue, forKey: "thinkingTimeMode")
@@ -655,6 +650,8 @@ final class GameSettings {
         ud.set(boardBackgroundColorRed, forKey: "boardBackgroundColorRed")
         ud.set(boardBackgroundColorGreen, forKey: "boardBackgroundColorGreen")
         ud.set(boardBackgroundColorBlue, forKey: "boardBackgroundColorBlue")
+        ud.set(handOffsetX, forKey: "handOffsetX")
+        ud.set(handOffsetY, forKey: "handOffsetY")
         ud.set(selectedCanvasSlot.rawValue, forKey: "selectedCanvasSlot")
         ud.set(canvasSlotNames, forKey: "canvasSlotNames")
         for slot in CanvasSlot.allCases {
@@ -729,7 +726,6 @@ final class GameSettings {
         s.showHandDisplayOption = ud.bool(forKey: "showHandDisplayOption")
         s.showTeyakuList     = (ud.object(forKey: "showTeyakuList") as? Bool) ?? s.showTeyakuList
         s.showHowToPlayAssist = (ud.object(forKey: "showHowToPlayAssist") as? Bool) ?? s.showHowToPlayAssist
-        s.agariHaiDisplay    = ud.bool(forKey: "agariHaiDisplay")
         s.dapaiAssist        = ud.bool(forKey: "dapaiAssist")
         s.fulouAssist        = ud.bool(forKey: "fulouAssist")
         s.thinkingTimeMode   = ThinkingTimeMode(rawValue: ud.string(forKey: "thinkingTimeMode") ?? "") ?? s.thinkingTimeMode
@@ -789,6 +785,10 @@ final class GameSettings {
             s.boardBackgroundColorGreen = ud.double(forKey: "boardBackgroundColorGreen")
             s.boardBackgroundColorBlue  = ud.double(forKey: "boardBackgroundColorBlue")
         }
+        if ud.object(forKey: "handOffsetX") != nil {
+            s.handOffsetX = ud.double(forKey: "handOffsetX")
+            s.handOffsetY = ud.double(forKey: "handOffsetY")
+        }
         s.selectedCanvasSlot = CanvasSlot(rawValue: ud.integer(forKey: "selectedCanvasSlot")) ?? .slot1
         if let names = ud.stringArray(forKey: "canvasSlotNames"), names.count == CanvasSlot.allCases.count {
             s.canvasSlotNames = names
@@ -824,7 +824,7 @@ final class GameSettings {
         if ud.object(forKey: "tileBackBorderCount") != nil {
             s.tileBackBorderCount = ud.integer(forKey: "tileBackBorderCount")
         }
-        s.tileBackColorScheme = TileBackColorScheme(rawValue: ud.string(forKey: "tileBackColorScheme") ?? "") ?? .original
+        s.tileBackColorScheme = TileBackColorScheme(rawValue: ud.string(forKey: "tileBackColorScheme") ?? "") ?? .lesserPanda
         if ud.object(forKey: "tileBackBorderColor1CustomRed") != nil {
             s.tileBackBorderColor1CustomRed   = ud.double(forKey: "tileBackBorderColor1CustomRed")
             s.tileBackBorderColor1CustomGreen = ud.double(forKey: "tileBackBorderColor1CustomGreen")
@@ -839,7 +839,7 @@ final class GameSettings {
             s.bgmByRound = rawTracks.enumerated().map { BGMTrack(rawValue: $1) ?? s.bgmByRound[$0] }
         }
         s.bgmMode            = BGMMode(rawValue: ud.string(forKey: "bgmMode") ?? "") ?? .bulk
-        s.bgmBulkTrack       = BGMTrack(rawValue: ud.string(forKey: "bgmBulkTrack") ?? "") ?? .jadeTiles
+        s.bgmBulkTrack       = BGMTrack(rawValue: ud.string(forKey: "bgmBulkTrack") ?? "") ?? .nekonoSanpomichi
         return s
     }
 

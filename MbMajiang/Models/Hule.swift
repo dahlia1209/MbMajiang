@@ -223,6 +223,13 @@ struct Hule {
         let solo = counts.values.filter { $0 == 1 }.count
         return 6 - pairCount + max(7 - (pairCount + solo),0)
     }
+
+    /// 七対子として成立している対子（同一牌2枚以上）の種類数。打牌アシストの内訳表示用
+    static func chiitoitsuPairCount(_ tiles: [String]) -> Int {
+        var counts: [String: Int] = [:]
+        for tile in tiles { counts[tile, default: 0] += 1 }
+        return counts.values.filter { $0 >= 2 }.count
+    }
     
     // スーツ1種の (面子数, 搭子数, 雀頭あり) を表す軽量型
     private struct SB: Hashable { var m, t: Int; var j: Bool }
@@ -263,7 +270,21 @@ struct Hule {
     }
 
     static func mianziXiangting(_ tiles: [String]) -> Int {
-        guard tiles.count >= 1 && (13 - tiles.count) % 3 == 0 else { return 99 }
+        mianziBreakdown(tiles).xiangting
+    }
+
+    /// 標準形（4面子1雀頭）で最もシャンテンが進む組み合わせの内訳。打牌アシストの内訳表示用
+    struct MianziBreakdown {
+        let mentsu: Int
+        let jantou: Int
+        let taatsu: Int
+        let xiangting: Int
+    }
+
+    static func mianziBreakdown(_ tiles: [String]) -> MianziBreakdown {
+        guard tiles.count >= 1 && (13 - tiles.count) % 3 == 0 else {
+            return MianziBreakdown(mentsu: 0, jantou: 0, taatsu: 0, xiangting: 99)
+        }
         let fulou = (13 - tiles.count) / 3
         let base  = 8 - fulou * 2
         let sc = tilesToSuitCounts(tiles)
@@ -275,6 +296,7 @@ struct Hule {
         let zSet = suitBlocks(sc.z, canSeq: false)
 
         var best = base
+        var bestMentsu = 0, bestTaatsu = 0, bestJantou = 0
         for mc in mSet { for pc in pSet { for sc2 in sSet { for zc in zSet {
             // 雀頭は全体で最大1つ
             let jCount = (mc.j ? 1 : 0) + (pc.j ? 1 : 0) + (sc2.j ? 1 : 0) + (zc.j ? 1 : 0)
@@ -284,9 +306,16 @@ struct Hule {
             let cap = (4 - fulou) - mentsu
             let s1 = base - 2 * mentsu - min(tatsu, cap)
             let s2 = jCount == 1 ? s1 - 1 : s1
-            best = min(best, min(s1, s2))
+            let candidate = min(s1, s2)
+            // 同点なら面子数が多い組み合わせを内訳表示として優先する
+            if candidate < best || (candidate == best && mentsu > bestMentsu) {
+                best = candidate
+                bestMentsu = mentsu
+                bestTaatsu = max(0, min(tatsu, cap))
+                bestJantou = jCount
+            }
         }}}}
-        return best
+        return MianziBreakdown(mentsu: bestMentsu, jantou: bestJantou, taatsu: bestTaatsu, xiangting: best)
     }
     
     // 国士無双シャンテン数: 13 - 种類数 - 対子有無

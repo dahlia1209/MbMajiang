@@ -8,15 +8,12 @@
 import SwiftUI
 
 struct ActionBannerView: View {
-    let imageName: String
+    let text: String
 
     @State private var opacity: Double = 0
 
     var body: some View {
-        Image(imageName)
-            .resizable()
-            .scaledToFit()
-            .frame(height: 100)
+        OshidashiText(text: text, size: 76)
             .opacity(opacity)
             .onAppear {
                 withAnimation(.easeIn(duration: 0.15)) { opacity = 1 }

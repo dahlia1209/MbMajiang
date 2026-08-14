@@ -43,8 +43,7 @@ struct CreditsView: View {
                         ])
 
                         creditSection("使用BGM", items: [
-                            ("打ち上げ花火 / 幕末舞曲〜戦〜", "甘茶の音楽工房"),
-                            ("旅館・宿っぽい曲 他", "もみじばミュージック"),
+                            ("嶺上開花 / 和風のBGM / ねこのさんぽみち", "みんなの創作支援サイトTスタ"),
                         ])
 
                         creditSection("使用ボイス", items: [

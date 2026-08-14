@@ -14,7 +14,6 @@ class SoundManager {
 
     private var players: [String: AVAudioPlayer] = [:]
     private var bgmPlayer: AVAudioPlayer?
-    private var isBGMMuted: Bool = false
 
     private init() {
         do {
@@ -52,7 +51,7 @@ class SoundManager {
         bgmPlayer?.stop()
         bgmPlayer = try? AVAudioPlayer(contentsOf: url)
         bgmPlayer?.numberOfLoops = -1
-        bgmPlayer?.volume = isBGMMuted ? 0 : volume
+        bgmPlayer?.volume = volume
         bgmPlayer?.prepareToPlay()
         bgmPlayer?.play()
     }
@@ -60,11 +59,6 @@ class SoundManager {
     func stopBGM() {
         bgmPlayer?.stop()
         bgmPlayer = nil
-    }
-
-    func setBGMMuted(_ muted: Bool, volume: Float = 0.5) {
-        isBGMMuted = muted
-        bgmPlayer?.volume = muted ? 0 : volume
     }
 
     func duration(for name: String) -> TimeInterval {

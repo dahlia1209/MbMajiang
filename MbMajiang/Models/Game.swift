@@ -108,9 +108,9 @@ class Game: Identifiable {
         }
         applyDebugHands()
         SoundManager.shared.playSequence(roundAnnouncementNames(), overlap: 0.15)
-        let (roundNames, honbaNames) = roundCutInImageNames()
-        roundCutInRoundNames = roundNames
-        roundCutInHonbaNames = honbaNames
+        let (roundText, honbaText) = roundCutInTexts()
+        roundCutInRoundText = roundText
+        roundCutInHonbaText = honbaText
     }
 
     private func roundAnnouncementNames() -> [String] {
@@ -136,7 +136,7 @@ class Game: Identifiable {
         SoundManager.shared.play("zimo")
         let idx = status.player
         huleCutInPlayer = idx
-        huleCutInImageName = "original/zimo"
+        huleCutInText = "ツモ"
         status.hulePlayer = idx
         primaryRonWinner = idx
         let context = buildHuleContext(player: idx, kind: .zimo)
@@ -148,7 +148,7 @@ class Game: Identifiable {
     func ronHule(_ winnerIds: [Int]) {
         SoundManager.shared.play("rong")
         huleCutInPlayer = winnerIds.first
-        huleCutInImageName = "original/rong"
+        huleCutInText = "ロン"
         primaryRonWinner = winnerIds.first
         var currentDefen = board.score.defen
         for (i, winnerId) in winnerIds.enumerated() {
@@ -283,7 +283,7 @@ class Game: Identifiable {
 
     func peng(player fulouPlayer: Int) {
         SoundManager.shared.play("peng")
-        showActionBanner("original/peng", player: fulouPlayer)
+        showActionBanner("ポン", player: fulouPlayer)
         status.lastDapai = nil
         guard players[fulouPlayer].status.selectedPengIndices.count == 2 else { return }
         let dapaiPai = players[status.player].he.callLast()
@@ -311,7 +311,7 @@ class Game: Identifiable {
 
     func minggang(player fulouPlayer: Int) {
         SoundManager.shared.play("gang")
-        showActionBanner("original/gang", player: fulouPlayer)
+        showActionBanner("カン", player: fulouPlayer)
         status.lastDapai = nil
         let dapaiPai = players[status.player].he.callLast()
         if let paoIdx = detectPao(fulouPlayer: fulouPlayer, calledTile: dapaiPai, isMinggang: true) {
@@ -379,7 +379,7 @@ class Game: Identifiable {
     
     func chi(player fulouPlayer: Int) {
         SoundManager.shared.play("chi")
-        showActionBanner("original/chi", player: fulouPlayer)
+        showActionBanner("チー", player: fulouPlayer)
         status.lastDapai = nil
         guard players[fulouPlayer].status.selectedChiIndices.count == 2 else { return }
         let dapaiPai = players[status.player].he.callLast()
@@ -404,7 +404,7 @@ class Game: Identifiable {
 
     func angang() {
         SoundManager.shared.play("gang")
-        showActionBanner("original/gang", player: status.player)
+        showActionBanner("カン", player: status.player)
         players[status.player].angang()
         status.gangdoraFlag = .afterZimo
         status.phase = .lingshang
@@ -416,7 +416,7 @@ class Game: Identifiable {
 
     func kagang() {
         SoundManager.shared.play("gang")
-        showActionBanner("original/gang", player: status.player)
+        showActionBanner("カン", player: status.player)
         status.dapai = players[status.player].status.selectedKagang
         players[status.player].kagang()
         status.gangdoraFlag = .afterZimo
@@ -715,9 +715,6 @@ class Game: Identifiable {
                 : human.shoupai.bingpai.count
             let index = pendingDapaiIndex ?? defaultIndex
             pendingDapaiIndex = nil
-            machiTiles = []
-            machiYakuSet = []
-            machiFuritenSet = []
             human.selectDapai(index)
         } else if hasButtons {
             // 自動キャンセル: ポン/チー/ロンを辞退（.cancelと同じ処理）
@@ -922,7 +919,7 @@ class Game: Identifiable {
 
     // MARK: - Lizhi Cut-in
     var lizhiCutInPlayer: Int? = nil
-    var actionBannerImage: String? = nil
+    var actionBannerText: String? = nil
     var actionBannerPlayer: Int? = nil
 
     // MARK: - Pingju Cut-in
@@ -946,47 +943,40 @@ class Game: Identifiable {
 
     // MARK: - Hule Cut-in
     var huleCutInPlayer: Int? = nil
-    var huleCutInImageName: String? = nil
+    var huleCutInText: String? = nil
 
     func dismissHuleCutIn() {
         huleCutInPlayer = nil
-        huleCutInImageName = nil
+        huleCutInText = nil
     }
 
     // MARK: - Round Cut-in
-    var roundCutInRoundNames: [String] = []
-    var roundCutInHonbaNames: [String] = []
+    var roundCutInRoundText: String = ""
+    var roundCutInHonbaText: String = ""
 
     func dismissRoundCutIn() {
-        roundCutInRoundNames = []
-        roundCutInHonbaNames = []
+        roundCutInRoundText = ""
+        roundCutInHonbaText = ""
         advance()
     }
 
-    private func roundCutInImageNames() -> (round: [String], honba: [String]) {
+    private func roundCutInTexts() -> (round: String, honba: String) {
         let raw = board.score.round.rawValue
-        var round: [String] = []
-        round.append(raw.hasPrefix("東") ? "original/dong" : "original/nan")
-        switch raw {
-        case "東一局", "南一局": round += ["original/yi", "original/kyoku"]
-        case "東二局", "南二局": round += ["original/er", "original/kyoku"]
-        case "東三局", "南三局": round += ["original/san", "original/kyoku"]
-        case "東四局", "南四局": round += ["original/si", "original/kyoku"]
-        default: break
-        }
-        let numberImages = ["original/yi", "original/er", "original/san", "original/si"]
+        let numbers = ["東一局","東二局","東三局","東四局","南一局","南二局","南三局","南四局"]
+        let round = numbers.contains(raw) ? raw : ""
+        let honbaNumbers = ["一","二","三","四"]
         let h = board.score.honba
-        let honba: [String] = (h >= 1 && h <= 4) ? [numberImages[h - 1], "original/honba"] : []
+        let honba = (h >= 1 && h <= 4) ? "\(honbaNumbers[h - 1])本場" : ""
         return (round, honba)
     }
 
     static let actionBannerDuration: Double = 1.2
 
-    func showActionBanner(_ imageName: String, player: Int? = nil, duration: Double = Game.actionBannerDuration) {
-        actionBannerImage = imageName
+    func showActionBanner(_ text: String, player: Int? = nil, duration: Double = Game.actionBannerDuration) {
+        actionBannerText = text
         actionBannerPlayer = player
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
-            self?.actionBannerImage = nil
+            self?.actionBannerText = nil
             self?.actionBannerPlayer = nil
         }
     }
@@ -998,42 +988,20 @@ class Game: Identifiable {
         }
     }
 
-    // MARK: - Machi Tiles
-    var machiTiles: [String] = []
-    var machiYakuSet: Set<String> = []
-    var machiFuritenSet: Set<String> = []
     var pendingDapaiIndex: Int? = nil
 
-    func checkMachiHasYaku(hand13: [String], winTile: String) -> Bool {
-        guard let human = humanPlayer else { return false }
-        let zhuangfeng: Feng = board.score.round.rawValue.hasPrefix("東") ? .東 : .南
-        let menfeng: Feng = board.score.defen[0].0
-        let normalized = Pai.normalize(winTile)
-        let fulouTiles = human.shoupai.fulouTiles
-        let context = HuleContext(
-            zhuangfeng: zhuangfeng,
-            menfeng: menfeng,
-            zimo: false,  // メンゼンツモを役として数えない
-            menqian: human.status.isMenqian,
-            lizhi: human.status.isLizhi,
-            daburi: human.status.isDaburi,
-            yifa: false, qianggang: false, lingshang: false,
-            haidi: false, hedi: false, tianhu: false, dihu: false,
-            winTile: normalized,
-            renpuFu: settings.renpuFu == .four ? 4 : 2,
-            kuitanAri: settings.kuitanAri
-        )
-        let tiles = (hand13 + [normalized]).sorted()
-        let result = Hule.getYaku(
-            tiles: tiles,
-            context: context,
-            baopai: board.shan.wangpai.baopai.map { $0.label },
-            libaopai: [],
-            fulouTiles: fulouTiles
-        )
-        
-        return !result.yaku.isEmpty
-    }
+    // MARK: - Dapai Preview（打牌アシストのヒントパネル。打牌候補選択中の向聴数と、シャンテンを進める/アガれる牌の残り枚数）
+    var dapaiPreviewShantenBefore: Int = 99
+    var dapaiPreviewShantenAfter: Int = 99
+    var dapaiPreviewUsefulTiles: [(tile: String, count: Int, hasYaku: Bool)] = []
+    /// 標準形（4面子1雀頭）の内訳。最もシャンテンが進む組み合わせが標準形でない場合はnil
+    var dapaiPreviewStandardBefore: Hule.MianziBreakdown? = nil
+    var dapaiPreviewStandardAfter: Hule.MianziBreakdown? = nil
+    /// 標準形以外の内訳（例:「3対子」「国士無双2向聴」。複数該当する場合は「または」で連結）
+    var dapaiPreviewOtherBreakdownBefore: String = ""
+    var dapaiPreviewOtherBreakdownAfter: String = ""
+    /// 打牌後にテンパイする場合、待ち牌のいずれかが自分の捨て牌（今回の打牌を含む）に含まれているか（フリテン）
+    var dapaiPreviewFuriten: Bool = false
 
     // MARK: - Hule Result
     var pendingHuleResults: [HuleResult] = []

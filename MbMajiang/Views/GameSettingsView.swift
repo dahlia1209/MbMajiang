@@ -180,7 +180,6 @@ struct GameSettingsView: View {
 
     private var displayDetail: some View {
         VStack(alignment: .leading, spacing: 16) {
-            boolRow("アガリ牌表示", isOn: Bindable(settings).agariHaiDisplay)
             boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
             boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)
             boolRow("手牌表示オプション", isOn: Bindable(settings).showHandDisplayOption)
