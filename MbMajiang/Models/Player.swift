@@ -33,6 +33,7 @@ class Player {
         case .dapai:  onDapai(status)
         case .fulou:  onFulou(status)
         case .kagang: onKagang(status)
+        case .lingshang: onLingshang(status)
         case .pingju: onPingju(status)
         default:      break
         }
@@ -64,7 +65,7 @@ class Player {
                     buttons.insert(.zimo)
                 }
                 // 門前テンパイなら .lizhi を表示
-                if status.paishu >= 4 && canDeclareRiichi() {
+                if status.paishu >= 4 && canDeclareRiichi(points: status.defen[self.id]) {
                     self.status.lizhiCandidateIndices = lizhiCandidateIndices()
                     buttons.insert(.lizhi)
                 }
@@ -223,6 +224,14 @@ class Player {
         self.status.availableButtonActions = []
         // 副露したプレイヤー（player 0）は UI タップで打牌するため action は none のまま
         self.status.decision = .none
+    }
+
+    // 暗カン・明カン後、嶺上牌をツモるまでの遷移フェーズ。誰にも操作の余地はないため選択状態を必ず解除する
+    func onLingshang(_ status: GameStatus) {
+        self.status.availableButtonActions = []
+        self.status.decision = .none
+        self.status.isSelectingAngang = false
+        self.status.isSelectingKagang = false
     }
 
     func onKagang(_ status: GameStatus) {
@@ -427,9 +436,9 @@ class Player {
         return yaojiu.filter { shoupai.normalizedAllLabels.contains($0) }.count >= 9
     }
 
-    // テンパイかつ門前なら立直宣言可能（点数チェックは Game 側で行う）
-    func canDeclareRiichi() -> Bool {
-        guard status.isMenqian else { return false }
+    // テンパイかつ門前、かつ持ち点1000点以上なら立直宣言可能
+    func canDeclareRiichi(points: Int) -> Bool {
+        guard status.isMenqian, points >= 1000 else { return false }
         let all = shoupai.allLabels.map { Pai.normalize($0) }
         return all.indices.contains { i in
             var rest = all
@@ -476,6 +485,19 @@ class Player {
         status.decision = .lizhi
     }
 
+    /// チー・ポン・カン・リーチのボタンを押した後、選択が確定する前に撤回して通常の操作に戻す
+    func cancelPendingSelection() {
+        status.isSelectingRiichi = false
+        status.lizhiCandidateIndices = []
+        if status.decision == .lizhi { status.decision = .none }
+        status.isSelectingPeng = false
+        status.selectedPengIndices = []
+        status.isSelectingChi = false
+        status.selectedChiIndices = []
+        status.isSelectingAngang = false
+        status.isSelectingKagang = false
+    }
+
     func startPengSelection() {
         status.isSelectingPeng = true
     }
@@ -485,6 +507,9 @@ class Player {
         guard status.selectedPengIndices.count >= 2 else { return }
         status.isSelectingPeng = false
         status.decision = .peng
+        // 演出待ちのcallbackを待たず、確定した瞬間に撤回ボタンを消す
+        status.availableButtonActions = []
+        status.preSelectionActions = []
         onActionReady?()
         onActionReady = nil
     }
@@ -510,16 +535,22 @@ class Player {
     func selectDapai(_ index: Int) {
         status.decision = .dapai
         status.selectedIdx = index
+        // リーチ選択中に確定した場合も、演出待ちのcallbackを待たず撤回ボタンを即座に消す
+        status.availableButtonActions = []
+        status.preSelectionActions = []
         onActionReady?()
         onActionReady = nil
     }
-    
+
     func selectChi(_ index: Int) {
         status.selectedChiIndices.append(index)
         guard status.selectedChiIndices.count >= 2 else { return }
 
         status.isSelectingChi = false
         status.decision = .chi
+        // 演出待ちのcallbackを待たず、確定した瞬間に撤回ボタンを消す
+        status.availableButtonActions = []
+        status.preSelectionActions = []
         onActionReady?()
         onActionReady = nil
     }
@@ -530,16 +561,22 @@ class Player {
         status.isSelectingAngang = false
         status.decision = .angang
         status.selectedIdx = index
+        // 演出待ちのcallbackを待たず、確定した瞬間に撤回ボタンを消す
+        status.availableButtonActions = []
+        status.preSelectionActions = []
         onActionReady?()
         onActionReady = nil
     }
-    
+
     func selectKagang(_ index: Int) {
         let label = shoupai.allLabels[index]
         status.selectedKagang = label
         status.isSelectingKagang = false
         status.decision = .kagang
         status.selectedIdx = index
+        // 演出待ちのcallbackを待たず、確定した瞬間に撤回ボタンを消す
+        status.availableButtonActions = []
+        status.preSelectionActions = []
         onActionReady?()
         onActionReady = nil
     }
@@ -594,7 +631,7 @@ class AIPlayer: Player {
                 return
             }
             // 門前テンパイならリーチ宣言（ダマ型はリーチしない）
-            if cpuStyle.declaresRiichi, status.paishu >= 4 && canDeclareRiichi() {
+            if cpuStyle.declaresRiichi, status.paishu >= 4 && canDeclareRiichi(points: status.defen[self.id]) {
                 self.status.isSelectingRiichi = true
                 selectDapai()
                 return
@@ -789,6 +826,27 @@ class AIPlayer: Player {
             }
         }
 
+        // きまぐれ型: シャンテンが最も進む牌が複数あればランダムに選ぶ（受け入れ枚数による絞り込みはしない）
+        if cpuStyle == .kimagure {
+            var bestShanten = Int.max
+            var candidates: [Int] = []
+            for i in 0..<allLabels.count {
+                var hand13 = allLabels
+                hand13.remove(at: i)
+                let shanten = Hule.xiangting(hand13)
+                let idx = i < bingpai.count ? i : shoupai.bingpai.count
+                if shanten < bestShanten {
+                    bestShanten = shanten
+                    candidates = [idx]
+                } else if shanten == bestShanten {
+                    candidates.append(idx)
+                }
+            }
+            self.status.decision = .dapai
+            self.status.selectedIdx = candidates.randomElement() ?? shoupai.bingpai.count
+            return
+        }
+
         let remaining: [String: Int] = getRemainingCounts?() ?? [:]
 
         var bestIdx = shoupai.bingpai.count
@@ -967,4 +1025,6 @@ struct PlayerStatus {
     var paoPlayerIdx: Int? = nil        // パオ責任者インデックス（大三元・大四喜・四槓子）
     var isDaburi: Bool = false          // ダブル立直フラグ
     var validAngangLabels: Set<String> = []  // リーチ後の暗槓可能牌ラベル
+    /// チー・ポン・カン・リーチのボタンを押した直後（選択確定前）、撤回した場合に復元するボタン一覧
+    var preSelectionActions: Set<PlayerButtonAction> = []
 }

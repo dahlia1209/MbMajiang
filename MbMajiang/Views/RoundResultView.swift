@@ -171,9 +171,7 @@ struct RoundResultView: View {
     private var hupaiSection: some View {
         VStack(alignment: .center, spacing: 4) {
             if result.hupai.isEmpty {
-                Text("（役計算未実装）")
-                    .font(.system(size: 13))
-                    .foregroundColor(.gray.opacity(0.6))
+                EmptyView()
             } else if result.hupai.count >= 5 {
                 HStack(alignment: .top, spacing: 24) {
                     hupaiGrid(Array(result.hupai.prefix(4)), offset: 0)

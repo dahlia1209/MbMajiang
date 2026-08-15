@@ -9,11 +9,11 @@ final class GameSettings {
 
     // MARK: - CPU
     // 下家・対面・上家の順（インデックス0=下家, 1=対面, 2=上家）
-    var cpuStyles: [CpuStyle] = [.damaDefense, .damaDefense, .damaDefense]
+    var cpuStyles: [CpuStyle] = [.kimagure, .kimagure, .kimagure]
 
     // MARK: - 点数
     var haikyuGenten: Int = 25000
-    var junikitenRanks: [Int] = [10, -10, -30]  // 2着, 3着, 4着 (1着は自動計算)
+    var junikitenRanks: [Int] = [10, -10, -20]  // 2着, 3着, 4着 (1着は自動計算)
     var junkitenRounding: Bool = false
     var renpuFu: RenpuFu = .two
 
@@ -32,7 +32,7 @@ final class GameSettings {
     var notenBatsuAri: Bool = true
     var dojiHuleMax: DojiHuleMax = .atamahane
     var renzhuFang: RenzhuFang = .tenpai
-    var tobiEndAri: Bool = false
+    var tobiEndAri: Bool = true
     var orasudomeAri: Bool = false
     var enchossenFang: EnchossenFang = .suddenDeath
 
@@ -853,12 +853,13 @@ final class GameSettings {
         case menzenOffense = "門前攻撃型"
         case menzenDefense = "門前守備型"
         case damaDefense   = "ダマ型"
+        case kimagure      = "きまぐれ型"
 
         /// 鳴き（チー・ポン）判断を行うか。falseなら門前を貫く。
         var doesFulou: Bool {
             switch self {
             case .fulouOffense, .fulouDefense: return true
-            case .menzenOffense, .menzenDefense, .damaDefense: return false
+            case .menzenOffense, .menzenDefense, .damaDefense, .kimagure: return false
             }
         }
 
@@ -866,7 +867,7 @@ final class GameSettings {
         var playsDefense: Bool {
             switch self {
             case .fulouDefense, .menzenDefense, .damaDefense: return true
-            case .fulouOffense, .menzenOffense: return false
+            case .fulouOffense, .menzenOffense, .kimagure: return false
             }
         }
 
@@ -884,14 +885,14 @@ final class GameSettings {
         }
 
         /// 対局前パネルの「簡易」タブで選択できる3種類（CPUの強さ）
-        static let simplePanelCases: [CpuStyle] = [.damaDefense, .menzenDefense, .fulouOffense]
+        static let simplePanelCases: [CpuStyle] = [.kimagure, .menzenDefense, .fulouOffense]
 
         /// 簡易タブでの表示名（絵文字付き）。simplePanelCases以外は通常名を返す
         var simplePanelLabel: String {
             switch self {
-            case .damaDefense:   return "ひよこ🐤"
-            case .menzenDefense: return "わし🦅"
-            case .fulouOffense:  return "らいおん🦁"
+            case .kimagure:      return "ひよこ🐤"
+            case .menzenDefense: return "はくちょう🦢"
+            case .fulouOffense:  return "わし🦅"
             default: return rawValue
             }
         }
@@ -998,7 +999,7 @@ final class GameSettings {
 
     private func applyTenhou() {
         haikyuGenten         = 25000
-        junikitenRanks       = [10, -10, -30]
+        junikitenRanks       = [10, -10, -20]
         junkitenRounding     = false
         renpuFu              = .two
         akadoraMan           = 1
@@ -1011,7 +1012,7 @@ final class GameSettings {
         nagashiManganAri     = false
         notenSengenAri       = false
         notenBatsuAri        = true
-        dojiHuleMax          = .atamahane
+        dojiHuleMax          = .doubleRon
         renzhuFang           = .tenpai
         tobiEndAri           = true
         ippatsuAri           = true

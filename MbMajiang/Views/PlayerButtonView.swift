@@ -23,6 +23,7 @@ enum PlayerButtonAction: CaseIterable, Hashable {
     case zimo     // ツモ
     case pingju   // 流局
     case kyuushu  // 九種九牌
+    case cancelSelection  // チー・ポン・カン・リーチの選択中に押した操作を撤回する
 
     nonisolated var label: String {
         switch self {
@@ -39,6 +40,15 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         case .zimo:     return "ツモ"
         case .pingju:   return "テンパイ"
         case .kyuushu:  return "九種九牌"
+        case .cancelSelection: return "撤回"
+        }
+    }
+
+    // アイコンのみで表示するボタン（nil = テキスト表示）
+    nonisolated var iconName: String? {
+        switch self {
+        case .cancelSelection: return "arrow.uturn.backward"
+        default: return nil
         }
     }
 
@@ -53,6 +63,7 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         case .rong:                         return Color(red: 0.7,  green: 0.15, blue: 0.15)
         case .zimo:                         return Color(red: 0.6,  green: 0.15, blue: 0.5)
         case .cancel:                       return Color(white: 0.55)
+        case .cancelSelection:              return Color(white: 0.45)
         default:                            return nil
         }
     }
@@ -64,6 +75,7 @@ enum PlayerButtonAction: CaseIterable, Hashable {
         case .noten:    return Color(red: 0.5, green: 0.3, blue: 0.1)
         case .pingju:   return Color(red: 0.25, green: 0.25, blue: 0.45)
         case .kyuushu:  return Color(red: 0.25, green: 0.25, blue: 0.45)
+        case .cancelSelection: return Color(white: 0.4)
         default:        return Color(red: 0.2, green: 0.45, blue: 0.2)
         }
     }
@@ -77,7 +89,7 @@ struct PlayerButtonView: View {
 
     // HTMLの並び順に固定
     private let order: [PlayerButtonAction] = [
-        .noten, .chi, .peng, .gang, .angang, .kagang, .minggang, .lizhi, .rong, .zimo, .pingju, .kyuushu, .cancel
+        .cancelSelection, .noten, .chi, .peng, .gang, .angang, .kagang, .minggang, .lizhi, .rong, .zimo, .pingju, .kyuushu, .cancel
     ]
 
     var body: some View {
@@ -93,15 +105,30 @@ struct PlayerButtonView: View {
                                     .resizable()
                                     .scaledToFit()
                                     .colorMultiply(tint)
-                                Text(action.label)
-                                    .font(.system(size: 24, weight: .bold))
-                                    .foregroundColor(.white)
-                                    .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                                if let icon = action.iconName {
+                                    Image(systemName: icon)
+                                        .font(.system(size: 24, weight: .bold))
+                                        .foregroundColor(.white)
+                                        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                                } else {
+                                    Text(action.label)
+                                        .font(.custom("ShinRetroMaruGothic-Bold", size: 24))
+                                        .foregroundColor(.white)
+                                        .shadow(color: .black.opacity(0.6), radius: 2, x: 0, y: 1)
+                                }
                             }
                             .frame(height: 90)
+                        } else if let icon = action.iconName {
+                            Image(systemName: icon)
+                                .font(.system(size: 28, weight: .bold))
+                                .foregroundColor(.white)
+                                .frame(width: 70, height: 70)
+                                .background(action.color)
+                                .clipShape(Circle())
+                                .shadow(color: .black.opacity(0.5), radius: 2, x: 0, y: 1)
                         } else {
                             Text(action.label)
-                                .font(.system(size: 18, weight: .bold))
+                                .font(.custom("ShinRetroMaruGothic-Bold", size: 18))
                                 .foregroundColor(.white)
                                 .frame(minWidth: 100, minHeight: 90)
                                 .padding(.horizontal, 10)
@@ -123,7 +150,7 @@ struct PlayerButtonView: View {
     ZStack {
         Color.green.opacity(0.4).ignoresSafeArea()
         PlayerButtonView(
-            visibleActions: [.cancel, .chi, .peng, .lizhi, .rong, .zimo]
+            visibleActions: [.cancel, .chi, .peng, .lizhi, .rong, .zimo, .cancelSelection]
         ) { action in
             print("tapped: \(action)")
         }

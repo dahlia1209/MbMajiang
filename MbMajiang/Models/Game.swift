@@ -436,6 +436,7 @@ class Game: Identifiable {
 
     // 全プレイヤーにcallbackを通知し、人間プレイヤーが準備完了次第ゲーム進行を処理
     private func advance() {
+        status.defen = board.score.defen.map { $0.1 }
         players.forEach { $0.callback(status: self.status) }
 
         // 副露スキップ有効時、ロンなしの副露ボタンのみなら自動キャンセル
@@ -803,15 +804,13 @@ class Game: Identifiable {
             }
         case .lizhi:
             human.startRiichiSelection()
+            human.status.preSelectionActions = previousActions
+            human.status.availableButtonActions = [.cancelSelection]
         case .peng:
-            if human.status.pengCandidates.count == 1 {
-                human.status.selectedPengIndices = human.status.pengCandidates[0]
-                human.status.decision = .peng
-                resolveHuman()
-            } else {
-                human.startPengSelection()
-            }
-            
+            human.startPengSelection()
+            human.status.preSelectionActions = previousActions
+            human.status.availableButtonActions = [.cancelSelection]
+
         case .minggang:
             if isGangFull {
                 infoMessage = "5回目のカンは不可"
@@ -820,41 +819,39 @@ class Game: Identifiable {
             human.status.decision = .minggang
             resolveHuman()
         case .chi:
-            if human.status.chiCandidates.count == 1 {
-                human.status.selectedChiIndices = human.status.chiCandidates[0]
-                human.status.decision = .chi
-                resolveHuman()
-            } else {
-                human.startChiSelection()
-            }
+            human.startChiSelection()
+            human.status.preSelectionActions = previousActions
+            human.status.availableButtonActions = [.cancelSelection]
         case .angang:
             if isGangFull {
                 infoMessage = "5回目のカンは不可"
                 return
             }
-            if human.shoupai.gangzi.count == 1 {
-                human.prepareAngang(label: human.shoupai.gangzi[0])
-                resolveHuman()
-            } else if human.shoupai.gangzi.count > 1 {
-                human.startAngangSelection()
-            } else {
+            if human.shoupai.gangzi.isEmpty {
                 human.status.decision = .zimo
                 resolveHuman()
+            } else {
+                human.startAngangSelection()
+                human.status.preSelectionActions = previousActions
+                human.status.availableButtonActions = [.cancelSelection]
             }
         case .kagang:
             if isGangFull {
                 infoMessage = "5回目のカンは不可"
                 return
             }
-            if human.shoupai.kagangzi.count == 1 {
-                human.prepareKagang(label: human.shoupai.kagangzi[0])
-                resolveHuman()
-            } else if human.shoupai.kagangzi.count > 1 {
-                human.startKagangSelection()
-            } else {
+            if human.shoupai.kagangzi.isEmpty {
                 human.status.decision = .zimo
                 resolveHuman()
+            } else {
+                human.startKagangSelection()
+                human.status.preSelectionActions = previousActions
+                human.status.availableButtonActions = [.cancelSelection]
             }
+        case .cancelSelection:
+            human.cancelPendingSelection()
+            human.status.availableButtonActions = human.status.preSelectionActions
+            human.status.preSelectionActions = []
 
         case .pingju:
             human.status.decision = .pingju
@@ -1436,12 +1433,24 @@ class Game: Identifiable {
         let sorted = finalScores.enumerated().sorted { $0.element.points > $1.element.points }
 
         var finalPoints = Array(repeating: 0.0, count: 4)
-        for (rank, indexed) in sorted.enumerated() {
-            let playerIdx = indexed.offset
-            let score = indexed.element.points
-            var base = Double(score - kaeshi) / 1000.0
-            if settings.junkitenRounding { base = base.rounded() }
-            finalPoints[playerIdx] = base + uma[rank] + (rank == 0 ? oka : 0.0)
+        // 同点者は同着扱いとし、該当する順位のウマ（1位ならオカも含む）を均等に分配する
+        var rank = 0
+        while rank < sorted.count {
+            var tieEnd = rank
+            while tieEnd + 1 < sorted.count && sorted[tieEnd + 1].element.points == sorted[rank].element.points {
+                tieEnd += 1
+            }
+            let tieCount = tieEnd - rank + 1
+            let sharedUma = uma[rank...tieEnd].reduce(0, +) / Double(tieCount)
+            let sharedOka = rank == 0 ? oka / Double(tieCount) : 0.0
+            for indexed in sorted[rank...tieEnd] {
+                let playerIdx = indexed.offset
+                let score = indexed.element.points
+                var base = Double(score - kaeshi) / 1000.0
+                if settings.junkitenRounding { base = base.rounded() }
+                finalPoints[playerIdx] = base + sharedUma + sharedOka
+            }
+            rank = tieEnd + 1
         }
 
         return SummaryResult(
@@ -1489,4 +1498,5 @@ struct GameStatus {
     var riichiAnkanLevel: GameSettings.RiichiAnkanLevel = .noChangeWaiting
     var isLingshang: Bool = false
     var notenSengenAri: Bool = false
+    var defen: [Int] = [0, 0, 0, 0]  // 各プレイヤーの現在の持ち点（リーチ宣言に1000点以上必要かの判定用）
 }

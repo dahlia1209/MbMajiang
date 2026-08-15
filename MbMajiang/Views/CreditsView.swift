@@ -38,10 +38,6 @@ struct CreditsView: View {
                         }
                         .padding(.top, 12)
 
-                        creditSection("開発", items: [
-                            ("開発者", "（開発者名を入力してください）")
-                        ])
-
                         creditSection("使用BGM", items: [
                             ("嶺上開花 / 和風のBGM / ねこのさんぽみち", "みんなの創作支援サイトTスタ"),
                         ])

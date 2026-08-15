@@ -32,6 +32,8 @@ struct BoardView: View {
         self.debugActions = debugActions
         self.autoStart = autoStart
         self._hasStarted = State(initialValue: !showStartButton)
+        // 打牌アシストが設定で有効な場合、対局開始時点でヒントアイコンもデフォルトでONにする
+        self._dapaiHintActive = State(initialValue: game.settings.dapaiAssist)
     }
 
     /// 実際に表示するボタン（gameのactionsが空の場合はdebugActionsを使用）
@@ -119,7 +121,7 @@ struct BoardView: View {
                     game.handlePlayerAction(action)
                 }
                 .scaleEffect(0.7)
-                .offset(y: 120)
+                .offset(y: 110)
             }
             
             // 打牌プレビュー（ヒントアイコンON時、打牌候補選択中に向聴数の変化と欲しい牌の残り枚数を表示）
@@ -145,11 +147,6 @@ struct BoardView: View {
                         beforeShantenText
                     }
                     .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    if game.dapaiPreviewFuriten {
-                        Text("フリテン")
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
-                    }
                     if game.dapaiPreviewUsefulTiles.isEmpty {
                         Text("有効牌なし")
                             .font(.system(size: 10))
@@ -161,6 +158,10 @@ struct BoardView: View {
                                 .frame(width: dapaiPreviewLabelWidth, alignment: .trailing)
                             Text("\(game.dapaiPreviewUsefulTiles.reduce(0) { $0 + $1.count })枚（\(game.dapaiPreviewUsefulTiles.count)種）")
                                 .foregroundColor(.white)
+                            if game.dapaiPreviewFuriten {
+                                Text("フリテン")
+                                    .foregroundColor(.red)
+                            }
                         }
                         .font(.system(size: 11, weight: .bold, design: .monospaced))
                         ScrollView(.horizontal, showsIndicators: false) {
@@ -909,7 +910,10 @@ private struct PlayerHandSection: View {
             let he = game.board.shan.he[0]
             let riverLabels = Set((he.qipai + he.calledPai).map { Pai.normalize($0.label) })
             let discardedLabel = Pai.normalize(tiles[index])
-            let furitenCheckLabels = riverLabels.union([discardedLabel])
+            let furitenCheckLabels = riverLabels
+                .union(game.status.afterLizhiDiscards[0])
+                .union(game.status.junDiscards[0])
+                .union([discardedLabel])
             furiten = usefulTiles.contains { furitenCheckLabels.contains($0.tile) }
         }
         let parts = shantenBreakdownParts(for: hand13, shanten: shantenAfter)

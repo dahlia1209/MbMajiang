@@ -95,6 +95,7 @@ struct OnZimoRiichiStyleGatingTests {
         var status = GameStatus()
         status.player = 0
         status.paishu = 10
+        status.defen = [25000, 25000, 25000, 25000]
         return status
     }
 
@@ -111,6 +112,36 @@ struct OnZimoRiichiStyleGatingTests {
         let ai = AIPlayer(id: 0, shoupai: Shoupai(tenpaiHand, "z1"))
         ai.cpuStyle = .menzenDefense
         ai.onZimo(makeStatus())
+        #expect(ai.status.isSelectingRiichi == true)
+    }
+
+    @Test("持ち点999点ではテンパイでもリーチ宣言しない")
+    func doesNotDeclareBelow1000Points() {
+        let ai = AIPlayer(id: 0, shoupai: Shoupai(tenpaiHand, "z1"))
+        ai.cpuStyle = .menzenDefense
+        var status = makeStatus()
+        status.defen[0] = 999
+        ai.onZimo(status)
+        #expect(ai.status.isSelectingRiichi == false)
+    }
+
+    @Test("持ち点0点ではテンパイでもリーチ宣言しない")
+    func doesNotDeclareAtZeroPoints() {
+        let ai = AIPlayer(id: 0, shoupai: Shoupai(tenpaiHand, "z1"))
+        ai.cpuStyle = .menzenDefense
+        var status = makeStatus()
+        status.defen[0] = 0
+        ai.onZimo(status)
+        #expect(ai.status.isSelectingRiichi == false)
+    }
+
+    @Test("持ち点ちょうど1000点ならリーチ宣言できる")
+    func declaresAtExactly1000Points() {
+        let ai = AIPlayer(id: 0, shoupai: Shoupai(tenpaiHand, "z1"))
+        ai.cpuStyle = .menzenDefense
+        var status = makeStatus()
+        status.defen[0] = 1000
+        ai.onZimo(status)
         #expect(ai.status.isSelectingRiichi == true)
     }
 }

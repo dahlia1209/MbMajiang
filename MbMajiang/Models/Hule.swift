@@ -307,8 +307,10 @@ struct Hule {
             let s1 = base - 2 * mentsu - min(tatsu, cap)
             let s2 = jCount == 1 ? s1 - 1 : s1
             let candidate = min(s1, s2)
-            // 同点なら面子数が多い組み合わせを内訳表示として優先する
-            if candidate < best || (candidate == best && mentsu > bestMentsu) {
+            // 同点なら面子数が多い組み合わせを、面子数も同じなら雀頭ありの組み合わせを内訳表示として優先する
+            if candidate < best
+                || (candidate == best && mentsu > bestMentsu)
+                || (candidate == best && mentsu == bestMentsu && jCount > bestJantou) {
                 best = candidate
                 bestMentsu = mentsu
                 bestTaatsu = max(0, min(tatsu, cap))
