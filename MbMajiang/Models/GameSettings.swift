@@ -396,7 +396,7 @@ final class GameSettings {
 
     /// 対局中に流せるBGMの一覧。各局（東一局〜南四局）に個別に割り当てる
     enum BGMTrack: String, CaseIterable, Hashable {
-        case nekonoSanpomichi = "ねこのさんぽみち"
+        case nekonoSanpomichi = "猫の散歩道"
         case kingsTileDraw = "嶺上開花"
         case japaneseStyle1 = "和風のBGM"
         case oikaze        = "追い風"
@@ -737,7 +737,7 @@ final class GameSettings {
         if let rawStyles = ud.array(forKey: "cpuStyles") as? [String], rawStyles.count == s.cpuStyles.count {
             s.cpuStyles = rawStyles.enumerated().map { CpuStyle(rawValue: $1) ?? s.cpuStyles[$0] }
         }
-        s.selectedPreset     = Preset(rawValue: ud.string(forKey: "selectedPreset") ?? "") ?? .custom
+        s.selectedPreset     = Preset(rawValue: ud.string(forKey: "selectedPreset") ?? "") ?? .original
         s.tileTheme          = TileTheme(rawValue: ud.string(forKey: "tileTheme") ?? "") ?? .original
         s.genericTileColorMode = TileBackColorMode(rawValue: ud.string(forKey: "genericTileColorMode") ?? "") ?? .simple
         s.genericColorScheme = GenericColorScheme(rawValue: ud.string(forKey: "genericColorScheme") ?? "") ?? .original
@@ -950,20 +950,54 @@ final class GameSettings {
     // MARK: - Preset
 
     enum Preset: String, CaseIterable, Hashable {
-        case tenhou  = "天鳳"
-        case mleague = "Mリーグ"
-        case custom  = "カスタム"
+        case original = "オリジナル"
+        case tenhou    = "天鳳"
+        case mleague   = "Mリーグ"
+        case custom    = "カスタム"
     }
 
-    var selectedPreset: Preset = .custom
+    var selectedPreset: Preset = .original
 
     func applyPreset(_ preset: Preset) {
         switch preset {
-        case .tenhou:  applyTenhou()
-        case .mleague: applyMleague()
-        case .custom:  break
+        case .original: applyOriginal()
+        case .tenhou:    applyTenhou()
+        case .mleague:   applyMleague()
+        case .custom:    break
         }
         selectedPreset = preset
+    }
+
+    /// このアプリ独自のデフォルトルール
+    private func applyOriginal() {
+        haikyuGenten         = 25000
+        junikitenRanks       = [10, -10, -20]
+        junkitenRounding     = false
+        renpuFu              = .two
+        akadoraMan           = 1
+        akadoraPin           = 1
+        akadoraSou           = 1
+        kuitanAri            = true
+        kuichikaeLevel       = .none
+        kyokuCount           = .tonpuSen
+        tochukuryokuAri      = true
+        nagashiManganAri     = false
+        notenSengenAri       = true
+        notenBatsuAri        = true
+        dojiHuleMax          = .atamahane
+        renzhuFang           = .tenpai
+        tobiEndAri           = true
+        ippatsuAri           = true
+        uradoraAri           = true
+        kandoraAri           = true
+        kandoraNochigakeAri  = false
+        kanUraAri            = true
+        riichiAnkanLevel     = .noChangeWaiting
+        yakumanFukugouAri    = true
+        doubleYakumanAri     = false
+        kazoeYakumanAri      = false
+        yakumanPaoAri        = true
+        kiriageMangan        = true
     }
 
     private func applyMleague() {

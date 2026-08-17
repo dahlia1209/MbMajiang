@@ -483,6 +483,8 @@ class Player {
     func startRiichiSelection() {
         status.isSelectingRiichi = true
         status.decision = .lizhi
+        // 撤回後の再選択でも、テンパイになる牌の一覧を必ず再計算する（空のままだと牌が一切操作不可になる）
+        status.lizhiCandidateIndices = lizhiCandidateIndices()
     }
 
     /// チー・ポン・カン・リーチのボタンを押した後、選択が確定する前に撤回して通常の操作に戻す

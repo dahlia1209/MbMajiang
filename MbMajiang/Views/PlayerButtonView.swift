@@ -151,8 +151,6 @@ struct PlayerButtonView: View {
         Color.green.opacity(0.4).ignoresSafeArea()
         PlayerButtonView(
             visibleActions: [.cancel, .chi, .peng, .lizhi, .rong, .zimo, .cancelSelection]
-        ) { action in
-            print("tapped: \(action)")
-        }
+        ) { _ in }
     }
 }

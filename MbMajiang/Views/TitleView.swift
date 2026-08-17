@@ -103,7 +103,7 @@ struct TitleView: View {
         Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isShopPresented = true } }) {
             Image(systemName: "cart.fill")
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(Color(red: 0.82, green: 0.68, blue: 0.25))
+                .foregroundStyle(Color(red: 0.97, green: 0.93, blue: 0.83))
                 .frame(width: 38, height: 38)
                 .background(Color.black.opacity(0.35))
                 .clipShape(Circle())
@@ -118,7 +118,7 @@ struct TitleView: View {
         Button(action: { withAnimation(.easeInOut(duration: 0.2)) { isCreditsPresented = true } }) {
             Image(systemName: "info.circle.fill")
                 .font(.system(size: 16, weight: .bold))
-                .foregroundStyle(Color(red: 0.82, green: 0.68, blue: 0.25))
+                .foregroundStyle(Color(red: 0.97, green: 0.93, blue: 0.83))
                 .frame(width: 38, height: 38)
                 .background(Color.black.opacity(0.35))
                 .clipShape(Circle())
@@ -153,9 +153,9 @@ struct TitleView: View {
             // ⑥ サブタイトル（英語 or 読み）
             Text("LET'S MAHJONG")
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundStyle(Color(red: 0.82, green: 0.68, blue: 0.25))
+                .foregroundStyle(Color(red: 0.97, green: 0.93, blue: 0.83))
                 .tracking(8)
-                .shadow(color: Color.black.opacity(0.5), radius: 3)
+                .shadow(color: Color.black.opacity(0.7), radius: 3)
                 .opacity(subtitleOpacity)
 
             // ⑦ メインタイトル（大きく迫力ある）「レッツ」だけ文字間を詰める

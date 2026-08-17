@@ -95,6 +95,80 @@ struct HandlePlayerActionSelectionTests {
         #expect(human.status.availableButtonActions == [.peng, .chi, .cancel])
         #expect(human.status.preSelectionActions.isEmpty)
     }
+
+    @Test("リーチを撤回して再度押しても、テンパイになる牌の一覧が空にならない（実機で発見: 打牌不可になるバグの再発防止）")
+    func lizhiCandidateIndicesSurviveCancelAndRetry() {
+        let game = makeGame()
+        let human = game.humanPlayer!
+        // 4面子+単騎（テンパイ） + ツモ牌z1（無関係な浮き牌、切ればテンパイ維持）
+        human.shoupai = Shoupai(["m1","m2","m3","p4","p5","p6","s7","s8","s9","m4","m5","m6","m7"], "z1")
+        human.status.availableButtonActions = [.lizhi, .zimo]
+
+        game.handlePlayerAction(.lizhi)
+        let firstCandidates = human.status.lizhiCandidateIndices
+        #expect(!firstCandidates.isEmpty)
+
+        game.handlePlayerAction(.cancelSelection)
+        #expect(human.status.lizhiCandidateIndices.isEmpty)
+
+        game.handlePlayerAction(.lizhi)
+        #expect(human.status.isSelectingRiichi == true)
+        #expect(!human.status.lizhiCandidateIndices.isEmpty)
+        #expect(human.status.lizhiCandidateIndices == firstCandidates)
+    }
+
+    @Test("ポンを撤回して再度押しても、ポン候補が消えない")
+    func pengCandidatesSurviveCancelAndRetry() {
+        let game = makeGame()
+        let human = game.humanPlayer!
+        human.status.pengCandidates = [[0, 1]]
+        human.status.availableButtonActions = [.peng, .cancel]
+
+        game.handlePlayerAction(.peng)
+        #expect(human.status.isSelectingPeng == true)
+        #expect(human.status.pengCandidates == [[0, 1]])
+
+        game.handlePlayerAction(.cancelSelection)
+        game.handlePlayerAction(.peng)
+        #expect(human.status.isSelectingPeng == true)
+        #expect(human.status.pengCandidates == [[0, 1]])
+    }
+
+    @Test("チーを撤回して再度押しても、チー候補が消えない")
+    func chiCandidatesSurviveCancelAndRetry() {
+        let game = makeGame()
+        let human = game.humanPlayer!
+        human.status.chiCandidates = [[0, 1]]
+        human.status.availableButtonActions = [.chi, .cancel]
+
+        game.handlePlayerAction(.chi)
+        #expect(human.status.isSelectingChi == true)
+        #expect(human.status.chiCandidates == [[0, 1]])
+
+        game.handlePlayerAction(.cancelSelection)
+        game.handlePlayerAction(.chi)
+        #expect(human.status.isSelectingChi == true)
+        #expect(human.status.chiCandidates == [[0, 1]])
+    }
+
+    @Test("暗カンを撤回して再度押しても、暗カン候補が消えない")
+    func angangCandidatesSurviveCancelAndRetry() {
+        let game = makeGame()
+        let human = game.humanPlayer!
+        human.shoupai = Shoupai(["m1","m1","m1","m1","p2","p3","p4","s5","s6","s7","z1","z1","z2"])
+        // 実際のフローでは onZimo が押下前に validAngangLabels を計算済みにしている
+        human.status.validAngangLabels = ["m1"]
+        human.status.availableButtonActions = [.angang]
+
+        game.handlePlayerAction(.angang)
+        #expect(human.status.isSelectingAngang == true)
+        #expect(human.status.validAngangLabels == ["m1"])
+
+        game.handlePlayerAction(.cancelSelection)
+        game.handlePlayerAction(.angang)
+        #expect(human.status.isSelectingAngang == true)
+        #expect(human.status.validAngangLabels == ["m1"])
+    }
 }
 
 @Suite("Player.cancelPendingSelection: 選択フラグの一括リセット")

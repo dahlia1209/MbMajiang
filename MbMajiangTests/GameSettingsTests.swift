@@ -11,10 +11,10 @@ struct GameSettingsPresetTests {
 
     // MARK: - selectedPreset の初期値
 
-    @Test("デフォルトの selectedPreset はカスタム")
-    func defaultIsCustom() {
+    @Test("デフォルトの selectedPreset はオリジナル")
+    func defaultIsOriginal() {
         let s = GameSettings()
-        #expect(s.selectedPreset == .custom)
+        #expect(s.selectedPreset == .original)
     }
 
     // MARK: - applyPreset で selectedPreset が切り替わる

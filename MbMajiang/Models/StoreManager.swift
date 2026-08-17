@@ -11,10 +11,9 @@ final class StoreManager {
     static let shared = StoreManager()
 
     enum ProductID: String, CaseIterable {
-        case detailedColors = "ryu-nakamura.MbMajiang.detailedColors"
-        case borderTheme    = "ryu-nakamura.MbMajiang.borderTheme"
-        case canvasTheme    = "ryu-nakamura.MbMajiang.canvasTheme"
-        case allUnlock      = "ryu-nakamura.MbMajiang.allUnlock"
+        case detailedColors = "ryu_nakamura.MbMajiang.detailedColors"
+        case borderTheme    = "ryu_nakamura.MbMajiang.borderTheme"
+        case canvasTheme    = "ryu_nakamura.MbMajiang.canvasTheme"
     }
 
     private(set) var products: [Product] = []
@@ -37,19 +36,16 @@ final class StoreManager {
     /// 詳細設定（牌デザイン表・裏・背景のRGB自由選択）が使えるか
     var hasDetailedColors: Bool {
         purchasedProductIDs.contains(ProductID.detailedColors.rawValue)
-            || purchasedProductIDs.contains(ProductID.allUnlock.rawValue)
     }
 
     /// 牌デザイン（裏）のボーダーテーマが使えるか
     var hasBorderTheme: Bool {
         purchasedProductIDs.contains(ProductID.borderTheme.rawValue)
-            || purchasedProductIDs.contains(ProductID.allUnlock.rawValue)
     }
 
     /// 背景の「キャンバス」テーマ（手書き機能）が使えるか
     var hasCanvasTheme: Bool {
         purchasedProductIDs.contains(ProductID.canvasTheme.rawValue)
-            || purchasedProductIDs.contains(ProductID.allUnlock.rawValue)
     }
 
     func loadProducts() async {

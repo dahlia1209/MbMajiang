@@ -383,7 +383,7 @@ struct GameEditView: View {
                     .pickerStyle(.menu)
                     .tint(goldLight)
                     .lineLimit(1)
-                    .fixedSize()
+                    .frame(maxWidth: 190)
                     previewButton(settings.bgmBulkTrack)
                 }
                 .frame(width: 260)
@@ -552,7 +552,7 @@ struct GameEditView: View {
             .pickerStyle(.menu)
             .tint(goldLight)
             .lineLimit(1)
-            .fixedSize()
+            .frame(maxWidth: 130)
             previewButton(settings.bgmByRound[index])
         }
     }

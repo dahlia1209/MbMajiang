@@ -15,7 +15,7 @@
   ],
   "products" : [
     {
-      "displayPrice" : "370",
+      "displayPrice" : "300",
       "familyShareable" : false,
       "internalID" : "1001",
       "localizations" : [
@@ -25,12 +25,12 @@
           "locale" : "ja"
         }
       ],
-      "productID" : "ryu-nakamura.MbMajiang.detailedColors",
+      "productID" : "ryu_nakamura.MbMajiang.detailedColors",
       "referenceName" : "カスタムカラーアンロック",
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "370",
+      "displayPrice" : "300",
       "familyShareable" : false,
       "internalID" : "1002",
       "localizations" : [
@@ -40,12 +40,12 @@
           "locale" : "ja"
         }
       ],
-      "productID" : "ryu-nakamura.MbMajiang.borderTheme",
+      "productID" : "ryu_nakamura.MbMajiang.borderTheme",
       "referenceName" : "ボーダーテーマアンロック",
       "type" : "NonConsumable"
     },
     {
-      "displayPrice" : "370",
+      "displayPrice" : "300",
       "familyShareable" : false,
       "internalID" : "1004",
       "localizations" : [
@@ -55,23 +55,8 @@
           "locale" : "ja"
         }
       ],
-      "productID" : "ryu-nakamura.MbMajiang.canvasTheme",
+      "productID" : "ryu_nakamura.MbMajiang.canvasTheme",
       "referenceName" : "キャンバステーマアンロック",
-      "type" : "NonConsumable"
-    },
-    {
-      "displayPrice" : "610",
-      "familyShareable" : false,
-      "internalID" : "1003",
-      "localizations" : [
-        {
-          "description" : "カスタムカラー・ボーダーテーマ・キャンバステーマ、全部まとめてお得にアンロックします",
-          "displayName" : "全部アンロック",
-          "locale" : "ja"
-        }
-      ],
-      "productID" : "ryu-nakamura.MbMajiang.allUnlock",
-      "referenceName" : "全部アンロック",
       "type" : "NonConsumable"
     }
   ],

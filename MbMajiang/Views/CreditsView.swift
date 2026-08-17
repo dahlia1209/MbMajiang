@@ -4,6 +4,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// アプリの開発者情報・バージョン情報を表示するクレジット画面
 struct CreditsView: View {
@@ -14,6 +15,16 @@ struct CreditsView: View {
 
     private var appVersion: String {
         Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+    }
+
+    /// 実行中のAppアイコン画像（Info.plistのCFBundleIconsから解決）
+    private var appIcon: UIImage? {
+        guard let icons = Bundle.main.infoDictionary?["CFBundleIcons"] as? [String: Any],
+              let primary = icons["CFBundlePrimaryIcon"] as? [String: Any],
+              let files = primary["CFBundleIconFiles"] as? [String],
+              let last = files.last
+        else { return nil }
+        return UIImage(named: last)
     }
 
     var body: some View {
@@ -27,29 +38,39 @@ struct CreditsView: View {
                 header
 
                 ScrollView {
-                    VStack(spacing: 24) {
-                        VStack(spacing: 4) {
-                            Text("レッツ麻雀")
-                                .font(.system(size: 20, weight: .bold, design: .monospaced))
-                                .foregroundStyle(goldLight)
-                            Text("Version \(appVersion)")
-                                .font(.system(size: 12, design: .monospaced))
-                                .foregroundStyle(goldLight.opacity(0.6))
-                        }
-                        .padding(.top, 12)
+                    VStack(spacing: 28) {
+                        appHeader
+
+                        creditSection("使用フォント", items: [
+                            ("新レトロ丸ゴシック", "文字魚（Typographish）"),
+                        ])
 
                         creditSection("使用BGM", items: [
-                            ("嶺上開花 / 和風のBGM / ねこのさんぽみち", "みんなの創作支援サイトTスタ"),
+                            ("ねこのさんぽみち", "みんなの創作支援サイトTスタ"),
+                            ("嶺上開花", "みんなの創作支援サイトTスタ"),
+                            ("和風のBGM", "みんなの創作支援サイトTスタ"),
+                            ("神ノ声", "もみじば"),
+                            ("追い風（Wuxia2）", "sei / PeriTune"),
+                            ("疾風（Shenxian）", "sei / PeriTune"),
+                        ])
+
+                        creditSection("使用効果音", items: [
+                            ("打牌音・牌選択音", "ノタの森"),
                         ])
 
                         creditSection("使用ボイス", items: [
-                            ("ずんだもん", "VOICEVOX")
+                            ("ずんだもん", "VOICEVOX"),
                         ])
 
-                        Text("プレイいただきありがとうございます。")
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(goldLight.opacity(0.75))
-                            .padding(.top, 8)
+                        creditSection("牌デザイン", items: [
+                            ("牌デザイン（表）", "ライムライト（majan.civillink.net）"),
+                        ])
+
+                        creditSection("開発", items: [
+                            ("開発者", "Ryu Nakamura"),
+                            ("アプリアイコン", "Mie Takeuchi"),
+                            ("Webサイト", "ryu-nakamura.com"),
+                        ])
                     }
                     .padding(20)
                 }
@@ -58,11 +79,38 @@ struct CreditsView: View {
         .environment(\.colorScheme, .dark)
     }
 
+    /// アプリアイコン・名前・バージョンをまとめた見出しブロック
+    private var appHeader: some View {
+        VStack(spacing: 8) {
+            if let appIcon {
+                Image(uiImage: appIcon)
+                    .resizable()
+                    .frame(width: 64, height: 64)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .stroke(gold.opacity(0.4), lineWidth: 1)
+                    )
+                    .shadow(color: .black.opacity(0.4), radius: 6, y: 3)
+            }
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text("レッツ麻雀")
+                    .font(.custom("ShinRetroMaruGothic-Bold", size: 20))
+                    .foregroundStyle(.white)
+                Text("Version \(appVersion)")
+                    .font(.custom("ShinRetroMaruGothic-Bold", size: 20))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+        }
+        .padding(.top, 20)
+        .padding(.bottom, 4)
+    }
+
     private var header: some View {
         ZStack {
             Text("クレジット")
-                .font(.system(size: 16, weight: .bold, design: .monospaced))
-                .foregroundStyle(goldLight)
+                .font(.custom("ShinRetroMaruGothic-Bold", size: 16))
+                .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.9), radius: 2)
                 .frame(maxWidth: .infinity)
 
@@ -80,25 +128,28 @@ struct CreditsView: View {
         }
         .padding(.horizontal, 20)
         .padding(.top, 36)
+        .padding(.bottom, 12)
     }
 
     private func creditSection(_ title: String, items: [(String, String)]) -> some View {
         VStack(alignment: .leading, spacing: 10) {
             Text(title)
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .foregroundStyle(goldLight.opacity(0.6))
+                .font(.custom("ShinRetroMaruGothic-Bold", size: 12))
+                .foregroundStyle(.white.opacity(0.6))
                 .tracking(2)
 
             VStack(spacing: 0) {
                 ForEach(Array(items.enumerated()), id: \.offset) { index, item in
-                    HStack {
+                    HStack(alignment: .top) {
                         Text(item.0)
-                            .font(.system(size: 12, design: .monospaced))
-                            .foregroundStyle(goldLight.opacity(0.7))
-                        Spacer()
+                            .font(.custom("ShinRetroMaruGothic-Bold", size: 12))
+                            .foregroundStyle(.white.opacity(0.7))
+                            .fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 12)
                         Text(item.1)
-                            .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(goldLight)
+                            .font(.custom("ShinRetroMaruGothic-Bold", size: 12))
+                            .foregroundStyle(.white)
+                            .multilineTextAlignment(.trailing)
                     }
                     .padding(.vertical, 10)
                     .padding(.horizontal, 12)

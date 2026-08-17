@@ -100,9 +100,8 @@ struct ShopView: View {
         .padding(.top, 36)
     }
 
-    /// 「全部アンロック」を除いた、個別に購入できる商品（一旦バンドル販売は行わない）
     private var purchasableProducts: [Product] {
-        store.products.filter { $0.id != StoreManager.ProductID.allUnlock.rawValue }
+        store.products
     }
 
     /// 個別商品カード。上部にテーマカラーの背景付きプレビュー、下部に商品情報とボタンを縦に並べる
@@ -158,7 +157,7 @@ struct ShopView: View {
         case .canvasTheme:
             LinearGradient(colors: [Color(red: 0.82, green: 0.75, blue: 0.58), Color(red: 0.6, green: 0.5, blue: 0.36)],
                             startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .allUnlock, .none:
+        case .none:
             LinearGradient(colors: [gold.opacity(0.4), Color.black.opacity(0.25)],
                             startPoint: .topLeading, endPoint: .bottomTrailing)
         }
@@ -207,11 +206,6 @@ struct ShopView: View {
             colorPreviewCluster
         case .canvasTheme:
             canvasPreview
-        case .allUnlock:
-            VStack(spacing: 4) {
-                borderPreviewCluster
-                colorPreviewCluster
-            }
         case .none:
             EmptyView()
         }
