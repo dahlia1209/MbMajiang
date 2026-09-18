@@ -66,6 +66,13 @@ struct CreditsView: View {
                             ("牌デザイン（表）", "ライムライト（majan.civillink.net）"),
                         ])
 
+                        creditSection("使用画像", items: [
+                            ("背景（レッサーパンダ）", "Mathias Appel\n(Wikimedia Commons / CC0)"),
+                            ("背景（柴犬）", "Yozakura\n(Wikimedia Commons / Public Domain)"),
+                            ("背景（猫）", "Lisa Redfern\n(Wikimedia Commons / CC0)"),
+                            ("背景（キツネ）", "米国魚類野生生物局\n(Wikimedia Commons / Public Domain)"),
+                        ])
+
                         creditSection("開発", items: [
                             ("開発者", "Ryu Nakamura"),
                             ("アプリアイコン", "Mie Takeuchi"),

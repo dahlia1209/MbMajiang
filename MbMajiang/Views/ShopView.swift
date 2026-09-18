@@ -64,7 +64,8 @@ struct ShopView: View {
                 }
 
                 restoreButton
-                    .padding(.bottom, 20)
+                    .padding(.top, 4)
+                    .padding(.bottom, 36)
             }
         }
         .task {
@@ -72,6 +73,14 @@ struct ShopView: View {
                 await store.loadProducts()
             }
             await store.updatePurchasedProducts()
+        }
+        .alert("購入の復元", isPresented: Binding(
+            get: { store.restoreResultMessage != nil },
+            set: { isPresented in if !isPresented { store.restoreResultMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(store.restoreResultMessage ?? "")
         }
         .environment(\.colorScheme, .dark)
     }
@@ -286,9 +295,13 @@ struct ShopView: View {
             Task { await store.restorePurchases() }
         } label: {
             Text("購入を復元する")
-                .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                .foregroundStyle(goldLight.opacity(0.85))
-                .underline()
+                .font(.system(size: 14, weight: .bold, design: .monospaced))
+                .foregroundStyle(goldLight)
+                .padding(.vertical, 14)
+                .padding(.horizontal, 28)
+                .background(Color.black.opacity(0.3))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(gold.opacity(0.6), lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: 10))
         }
         .buttonStyle(.plain)
     }

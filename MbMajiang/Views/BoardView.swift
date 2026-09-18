@@ -18,6 +18,7 @@ struct BoardView: View {
     @State private var teyakuListActive: Bool = false
     @State private var howToPlayActive: Bool = false
     @State private var dapaiHintActive: Bool = false
+    @State private var tedashiHintActive: Bool = false
     /// 打牌プレビューパネルの各行のラベル幅（「次巡ツモ有効牌：」の幅に合わせ、「：」の位置を全行で揃える）
     private let dapaiPreviewLabelWidth: CGFloat = 88
     /// 手役一覧パネルで折りたたまれている区分（1翻〜ダブル役満）。初期状態は1翻のみ展開
@@ -34,6 +35,8 @@ struct BoardView: View {
         self._hasStarted = State(initialValue: !showStartButton)
         // 打牌アシストが設定で有効な場合、対局開始時点でヒントアイコンもデフォルトでONにする
         self._dapaiHintActive = State(initialValue: game.settings.dapaiAssist)
+        // 手出し表示オプションが設定で有効な場合、対局開始時点でヒントアイコンもデフォルトでONにする
+        self._tedashiHintActive = State(initialValue: game.settings.showTedashiDisplayOption)
     }
 
     /// 実際に表示するボタン（gameのactionsが空の場合はdebugActionsを使用）
@@ -71,15 +74,15 @@ struct BoardView: View {
             }
             .padding(.horizontal, 40)
 
-            HeView(he: game.board.shan.he[0], highlightedIndex: lastDapaiIndex(for: 0))
+            HeView(he: game.board.shan.he[0], highlightedIndex: lastDapaiIndex(for: 0), tedashiHintActive: tedashiHintActive)
                 .offset(y: 100)
-            HeView(he: game.board.shan.he[1], highlightedIndex: lastDapaiIndex(for: 1))
+            HeView(he: game.board.shan.he[1], highlightedIndex: lastDapaiIndex(for: 1), tedashiHintActive: tedashiHintActive)
                 .offset(y: 200)
                 .rotationEffect(.degrees(270))
-            HeView(he: game.board.shan.he[2], highlightedIndex: lastDapaiIndex(for: 2))
+            HeView(he: game.board.shan.he[2], highlightedIndex: lastDapaiIndex(for: 2), tedashiHintActive: tedashiHintActive)
                 .offset(y: 100)
                 .rotationEffect(.degrees(180))
-            HeView(he: game.board.shan.he[3], highlightedIndex: lastDapaiIndex(for: 3))
+            HeView(he: game.board.shan.he[3], highlightedIndex: lastDapaiIndex(for: 3), tedashiHintActive: tedashiHintActive)
                 .offset(y: 200)
                 .rotationEffect(.degrees(90))
 
@@ -274,6 +277,19 @@ struct BoardView: View {
                             Image(systemName: revealAll ? "eye.fill" : "eye.slash.fill")
                                 .font(.system(size: 16))
                                 .foregroundColor(revealAll ? .yellow : .white.opacity(0.7))
+                                .frame(width: 38, height: 38)
+                                .background(Color.black.opacity(0.4))
+                                .clipShape(Circle())
+                        }
+                    }
+                    // 手出し表示トグル（設定で有効時のみ、手牌表示オプションの下に表示。ONの間だけ河の手出し牌を目立たせる）
+                    if game.settings.showTedashiDisplayOption {
+                        Button {
+                            tedashiHintActive.toggle()
+                        } label: {
+                            Text("手")
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundColor(tedashiHintActive ? .yellow : .white.opacity(0.7))
                                 .frame(width: 38, height: 38)
                                 .background(Color.black.opacity(0.4))
                                 .clipShape(Circle())
@@ -689,6 +705,7 @@ struct BoardView: View {
                     game.settings.fulouAssist = newValue
                     game.settings.showTeyakuList = newValue
                     game.settings.showHowToPlayAssist = newValue
+                    game.settings.showTedashiDisplayOption = newValue
                 }
             ))
             .labelsHidden()
@@ -931,7 +948,8 @@ private struct PlayerHandSection: View {
             menfeng: menfeng,
             zimo: false,
             menqian: human.status.isMenqian,
-            lizhi: human.status.isLizhi,
+            // リーチ選択中（リーチボタン押下後）の打牌候補は、選択すればリーチが成立するため役有りとして扱う
+            lizhi: human.status.isLizhi || human.status.isSelectingRiichi,
             daburi: human.status.isDaburi,
             yifa: false, qianggang: false, lingshang: false,
             haidi: false, hedi: false, tianhu: false, dihu: false,

@@ -132,6 +132,7 @@ struct Pai: Hashable {
     var hidden: Bool = false
     var revealed: Bool = true
     var rotated: Bool = false
+    var isTsumogiri: Bool = false
 
     init(_ code: String) {
         let value = paiTable[code]

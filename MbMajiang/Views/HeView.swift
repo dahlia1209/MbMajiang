@@ -10,6 +10,7 @@ import SwiftUI
 struct HeView: View {
     var he: He
     var highlightedIndex: Int? = nil
+    var tedashiHintActive: Bool = false
 
     var body: some View {
         let row1 = Array(he.qipai.prefix(6))
@@ -42,10 +43,14 @@ struct HeView: View {
 
     @ViewBuilder
     private func paiCell(_ pai: Pai, globalIndex: Int) -> some View {
+        let isTsumogiriDimmed = tedashiHintActive && pai.isTsumogiri
+        let highlightOpacity = globalIndex == highlightedIndex ? 0.5 : 1.0
+
         PaiView(pai.label)
             .rotationEffect(pai.rotated ? .degrees(90) : .degrees(0))
             .frame(width: pai.rotated ? 30 : 22, height: pai.rotated ? 22 : 30)
-            .opacity(globalIndex == highlightedIndex ? 0.5 : 1.0)
+            .colorMultiply(isTsumogiriDimmed ? Color(white: 0.4) : .white)
+            .opacity(highlightOpacity)
     }
 }
 

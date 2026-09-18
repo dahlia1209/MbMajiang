@@ -49,6 +49,7 @@ final class GameSettings {
     var showHandDisplayOption: Bool = false
     var showTeyakuList: Bool = true
     var showHowToPlayAssist: Bool = true
+    var showTedashiDisplayOption: Bool = true
     var dapaiAssist: Bool = true
     var fulouAssist: Bool = true
     var thinkingTimeMode: ThinkingTimeMode = .unlimited
@@ -597,6 +598,7 @@ final class GameSettings {
         ud.set(showHandDisplayOption, forKey: "showHandDisplayOption")
         ud.set(showTeyakuList, forKey: "showTeyakuList")
         ud.set(showHowToPlayAssist, forKey: "showHowToPlayAssist")
+        ud.set(showTedashiDisplayOption, forKey: "showTedashiDisplayOption")
         ud.set(dapaiAssist, forKey: "dapaiAssist")
         ud.set(fulouAssist, forKey: "fulouAssist")
         ud.set(thinkingTimeMode.rawValue, forKey: "thinkingTimeMode")
@@ -726,6 +728,7 @@ final class GameSettings {
         s.showHandDisplayOption = ud.bool(forKey: "showHandDisplayOption")
         s.showTeyakuList     = (ud.object(forKey: "showTeyakuList") as? Bool) ?? s.showTeyakuList
         s.showHowToPlayAssist = (ud.object(forKey: "showHowToPlayAssist") as? Bool) ?? s.showHowToPlayAssist
+        s.showTedashiDisplayOption = (ud.object(forKey: "showTedashiDisplayOption") as? Bool) ?? s.showTedashiDisplayOption
         s.dapaiAssist        = ud.bool(forKey: "dapaiAssist")
         s.fulouAssist        = ud.bool(forKey: "fulouAssist")
         s.thinkingTimeMode   = ThinkingTimeMode(rawValue: ud.string(forKey: "thinkingTimeMode") ?? "") ?? s.thinkingTimeMode

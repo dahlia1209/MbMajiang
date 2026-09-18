@@ -183,6 +183,7 @@ struct GameSettingsView: View {
             boolRow("打牌アシスト", isOn: Bindable(settings).dapaiAssist)
             boolRow("副露アシスト", isOn: Bindable(settings).fulouAssist)
             boolRow("手牌表示オプション", isOn: Bindable(settings).showHandDisplayOption)
+            boolRow("手出し表示", isOn: Bindable(settings).showTedashiDisplayOption)
         }
     }
 

@@ -20,6 +20,7 @@ final class StoreManager {
     private(set) var purchasedProductIDs: Set<String> = []
     var isLoading = false
     var lastErrorMessage: String?
+    var restoreResultMessage: String?
 
     private var updateListenerTask: Task<Void, Never>?
 
@@ -87,12 +88,10 @@ final class StoreManager {
     }
 
     func restorePurchases() async {
-        do {
-            try await AppStore.sync()
-        } catch {
-            lastErrorMessage = "復元に失敗しました: \(error.localizedDescription)"
-        }
+        let previouslyOwned = purchasedProductIDs
+        try? await AppStore.sync()
         await updatePurchasedProducts()
+        restoreResultMessage = purchasedProductIDs == previouslyOwned ? "復元できる購入履歴が見つかりませんでした" : "購入履歴を復元しました"
     }
 
     func updatePurchasedProducts() async {

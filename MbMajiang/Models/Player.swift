@@ -376,9 +376,10 @@ class Player {
         let bingpaiCount = shoupai.bingpai.count
         let isZimoDapai = status.selectedIdx ?? 99 >= bingpaiCount
 
-        let dapai: Pai
+        var dapai: Pai
         if isZimoDapai {
             dapai = shoupai.zimo!
+            dapai.isTsumogiri = true
             he.qipai.append(dapai)
             shoupai.zimo?.hidden = true
         } else {

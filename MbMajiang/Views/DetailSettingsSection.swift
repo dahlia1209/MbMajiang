@@ -37,6 +37,7 @@ struct DetailSettingsSection: View {
                 yesNoRow("手役一覧", isOn: $settings.showTeyakuList)
                 yesNoRow("遊び方", isOn: $settings.showHowToPlayAssist)
                 boolRow("手牌表示オプション", isOn: $settings.showHandDisplayOption)
+                boolRow("手出し表示", isOn: $settings.showTedashiDisplayOption)
             }
             group("点数") {
                 numberRow("配給原点", value: $settings.haikyuGenten, options: Self.haikyuGentenRange)
